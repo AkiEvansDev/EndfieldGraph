@@ -41,27 +41,29 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
         var reachable = new HashSet<Guid>();
         var topoParentFirst = BuildTopoParentFirst(normalizedGoals.Select(g => g.ResourceId), map, reachable);
 
-        var need = reachable.ToDictionary(id => id, _ => 0.0);
+        var goalNeed = reachable.ToDictionary(id => id, _ => 0.0);
         foreach (var g in normalizedGoals)
         {
             if (reachable.Contains(g.ResourceId))
-                need[g.ResourceId] += g.QtyPerMin;
+                goalNeed[g.ResourceId] += g.QtyPerMin;
         }
+
+        var consumedByParents = reachable.ToDictionary(id => id, _ => 0.0);
 
         foreach (var parentId in topoParentFirst)
         {
             if (!map.TryGetValue(parentId, out var parent))
                 continue;
 
-            var needParent = need[parentId];
-            if (needParent <= 0)
+            var totalNeedParent = goalNeed[parentId] + consumedByParents[parentId];
+            if (totalNeedParent <= 0)
                 continue;
 
             if (parent.Inputs.Count == 0)
                 continue;
 
             var outQty = Math.Max(1, parent.OutputQty);
-            var craftsPerMin = needParent / outQty;
+            var craftsPerMin = totalNeedParent / outQty;
 
             foreach (var inp in parent.Inputs)
             {
@@ -70,9 +72,11 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
                 if (!reachable.Contains(childId)) continue;
 
                 var q = Math.Max(1, inp.Qty);
-                need[childId] += craftsPerMin * q;
+                consumedByParents[childId] += craftsPerMin * q;
             }
         }
+
+        var totalNeed = reachable.ToDictionary(id => id, id => goalNeed[id] + consumedByParents[id]);
 
         var leaves = reachable
             .Where(id => map.TryGetValue(id, out var r) && r.Inputs.Count == 0)
@@ -83,7 +87,7 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
                     id,
                     r.Name,
                     r.IconPngBytes,
-                    NeedPerMin: need[id]
+                    NeedPerMin: totalNeed[id]
                 );
             })
             .OrderByDescending(x => x.NeedPerMin)
@@ -107,11 +111,11 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
                 var outQty = Math.Max(1, r.OutputQty);
                 var craftTime = Math.Max(0, r.CraftTimeSec);
 
-                var consumed = need[id];
+                var consumed = consumedByParents[id];
+                var producedNeed = totalNeed[id];
 
                 if (isLeaf)
                 {
-                    var produced = consumed;
                     return new BuildCalcRow(
                         r.Id,
                         r.Name,
@@ -119,8 +123,8 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
                         IsGoal: isGoal,
                         IsLeaf: true,
                         ConsumedPerMin: consumed,
-                        ProducedPerMin: produced,
-                        DeltaPerMin: produced - consumed,
+                        ProducedPerMin: producedNeed,
+                        DeltaPerMin: producedNeed - consumed,
                         CraftsPerMin: 0,
                         Machines: 0,
                         OutputQty: outQty,
@@ -128,7 +132,7 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
                     );
                 }
 
-                var craftsPerMin = consumed / outQty;
+                var craftsPerMin = producedNeed / outQty;
 
                 int machines = craftTime <= 0
                     ? 0
@@ -179,7 +183,7 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
         {
             Leaves = leaves,
             Rows = rows,
-            NeedPerMinById = need
+            NeedPerMinById = totalNeed
         };
     }
 

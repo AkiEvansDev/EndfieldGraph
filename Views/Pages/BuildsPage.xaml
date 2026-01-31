@@ -237,8 +237,8 @@
 
                                                                 <controls:ProdConsBar
                                                                     VerticalAlignment="Center"
-                                                                    Produced="{Binding ProducedPerMin}"
-                                                                    Consumed="{Binding ConsumedPerMin}"/>
+                                                                    Consumed="{Binding ConsumedPerMin}"
+                                                                    Produced="{Binding ProducedPerMin}"/>
 
                                                                 <ui:TextBlock 
                                                                     Grid.Column="2"

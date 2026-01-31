@@ -187,7 +187,7 @@ public partial class ResourcesViewModel : ViewModel
                     Title = "Remove resource?",
                     Content = $"Resource is used in {usageCount} recipe(s). Do you want to remove it anyway?",
                     PrimaryButtonText = "Remove",
-                    SecondaryButtonText = "Cancel",
+                    CloseButtonText = "Cancel",
                     DefaultButton = ContentDialogButton.Secondary
                 },
                 default

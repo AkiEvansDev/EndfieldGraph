@@ -48,6 +48,8 @@ public partial class App
                 _ = services.AddSingleton<IBuildsCalculationService, BuildsCalculationService>();
 
                 _ = services.AddTransient<Views.Windows.GraphWindow>();
+
+                _ = services.AddSingleton<IUpdateService, GitHubUpdateService>();
             }
         )
         .Build();

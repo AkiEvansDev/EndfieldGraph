@@ -1,4 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using EndfieldGraph.Services;
 using System.Collections.ObjectModel;
 using Wpf.Ui.Controls;
 
@@ -12,15 +13,18 @@ public partial class MainWindowViewModel : ViewModel
     [ObservableProperty] private ObservableCollection<object> navigationItems = [];
     [ObservableProperty] private ObservableCollection<object> navigationFooter = [];
 
-    public MainWindowViewModel()
+    public MainWindowViewModel(IUpdateService updateService)
     {
         if (!isInitialized)
             InitializeViewModel();
+
+        _ = updateService.CheckForUpdatesAsync();
     }
 
     private void InitializeViewModel()
     {
-        ApplicationTitle = "Endfield Graph 0.1";
+        var v = VersionUtil.GetCurrentVersion();
+        ApplicationTitle = $"Endfield Graph v{v.Major}.{v.Minor}";
 
         NavigationItems =
         [

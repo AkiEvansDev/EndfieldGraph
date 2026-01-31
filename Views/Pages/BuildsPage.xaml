@@ -115,7 +115,7 @@
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="6"/>
+                                        <RowDefinition Height="0"/>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="12"/>
                                         <RowDefinition Height="*"/>
@@ -134,45 +134,41 @@
                                             Appearance="Secondary"/>
                                     </StackPanel>
 
-                                    <ui:DynamicScrollViewer 
+                                    <ItemsControl 
                                         Grid.Row="2" 
-                                        VerticalScrollBarVisibility="Disabled" 
-                                        HorizontalScrollBarVisibility="Hidden">
-                                        <ItemsControl 
-                                            ItemsSource="{Binding DataContext.ViewModel.Calculation.Leaves, RelativeSource={RelativeSource AncestorType=Page}}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <StackPanel Orientation="Horizontal"/>
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
+                                        ItemsSource="{Binding DataContext.ViewModel.Calculation.Leaves, RelativeSource={RelativeSource AncestorType=Page}}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
 
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <ui:Card
-                                                        Margin="0 0 6 0"
-                                                        Padding="6 2"
-                                                        BorderThickness="0">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <ui:Image
-                                                                Width="16" Height="16"
-                                                                CornerRadius="3"
-                                                                Margin="0 0 6 0"
-                                                                Stretch="Uniform"
-                                                                Source="{Binding IconPngBytes, Converter={StaticResource BytesToImg}}"/>
-                                                            <ui:TextBlock
-                                                                VerticalAlignment="Center"
-                                                                Text="{Binding Name}"
-                                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                Margin="0 0 6 0"/>
-                                                            <ui:TextBlock
-                                                                VerticalAlignment="Center"
-                                                                Text="{Binding NeedPerMin, Converter={StaticResource PerMin}}"/>
-                                                        </StackPanel>
-                                                    </ui:Card>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </ui:DynamicScrollViewer>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <ui:Card
+                                                    Margin="0 6 6 0"
+                                                    Padding="6 2"
+                                                    BorderThickness="0">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <ui:Image
+                                                            Width="16" Height="16"
+                                                            CornerRadius="3"
+                                                            Margin="0 0 6 0"
+                                                            Stretch="Uniform"
+                                                            Source="{Binding IconPngBytes, Converter={StaticResource BytesToImg}}"/>
+                                                        <ui:TextBlock
+                                                            VerticalAlignment="Center"
+                                                            Text="{Binding Name}"
+                                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                            Margin="0 0 6 0"/>
+                                                        <ui:TextBlock
+                                                            VerticalAlignment="Center"
+                                                            Text="{Binding NeedPerMin, Converter={StaticResource PerMin}}"/>
+                                                    </StackPanel>
+                                                </ui:Card>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
 
                                     <ui:DynamicScrollViewer 
                                         Grid.Row="4"

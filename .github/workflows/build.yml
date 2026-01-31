@@ -1,0 +1,41 @@
+name: Build WPF Release
+
+permissions:
+  contents: write
+  
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Publish single-file exe
+        run: |
+          dotnet publish EndfieldGraph.csproj `
+            -c Release `
+            -r win-x64 `
+            -p:PublishSingleFile=true `
+            -p:SelfContained=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true
+
+      - name: Upload exe to release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: |
+            bin/Release/net10.0-windows/win-x64/publish/EndfieldGraph.exe

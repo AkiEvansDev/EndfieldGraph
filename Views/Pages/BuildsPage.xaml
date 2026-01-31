@@ -320,7 +320,8 @@
 
                                     <ui:DynamicScrollViewer
                                         Grid.Row="2"
-                                        Grid.ColumnSpan="3">
+                                        Grid.ColumnSpan="3"
+                                        VerticalScrollBarVisibility="Hidden">
                                         <ItemsControl
                                             ItemsSource="{Binding Goals}">
                                             <ItemsControl.ItemTemplate>

@@ -1,0 +1,98 @@
+﻿<UserControl 
+    x:Class="EndfieldGraph.Views.Controls.ResourcePicker"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:local="clr-namespace:EndfieldGraph.Views.Controls"
+    mc:Ignorable="d" 
+    d:DesignHeight="450" d:DesignWidth="800"
+    x:Name="Root">
+    <Grid>
+        <ui:Button 
+            x:Name="ButtonRoot"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Stretch"
+            Click="OnButtonRootClick">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="6"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="6"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <ui:Image
+                    Grid.Column="0"
+                    Width="28" Height="28"
+                    CornerRadius="4"
+                    Source="{Binding ElementName=Root, Path=SelectedIcon}"
+                    Stretch="Uniform"/>
+
+                <ui:TextBlock
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Left"
+                    Text="{Binding ElementName=Root, Path=SelectedName}"/>
+
+                <ui:SymbolIcon
+                    Grid.Column="4"
+                    Symbol="ChevronDown24"/>
+            </Grid>
+        </ui:Button>
+
+        <ui:Flyout 
+            x:Name="Flyout"
+            Placement="Bottom"
+            Opened="OnFlyoutOpened"
+            Closed="OnFlyoutClosed">
+            <Grid 
+                Margin="-12"
+                Width="{Binding ElementName=ButtonRoot, Path=ActualWidth}">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="6"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <ui:TextBox 
+                        x:Name="SearchBox"
+                        PlaceholderText="{Binding ElementName=Root, Path=SearchPlaceholder}"
+                        Text="{Binding ElementName=Root, Path=SearchText, UpdateSourceTrigger=PropertyChanged}"
+                        PreviewKeyDown="OnSearchBoxPreviewKeyDown">
+                        <ui:TextBox.Icon>
+                            <ui:SymbolIcon Symbol="Search24"/>
+                        </ui:TextBox.Icon>
+                    </ui:TextBox>
+
+                    <ui:ListView 
+                        x:Name="List"
+                        Grid.Row="2"
+                        MaxHeight="320"
+                        ItemsSource="{Binding ElementName=Root, Path=ViewItems}"
+                        SelectionMode="Single"
+                        MouseLeftButtonUp="OnListMouseLeftButtonUp"
+                        KeyDown="OnListKeyDown">
+                        <ui:ListView.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:Image 
+                                        Width="28" Height="28"
+                                        CornerRadius="4"
+                                        Margin="0 0 6 0"
+                                        Source="{Binding Icon}" Stretch="Uniform"/>
+                                    <ui:TextBlock 
+                                        VerticalAlignment="Center"
+                                        Text="{Binding Name}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ui:ListView.ItemTemplate>
+                    </ui:ListView>
+                </Grid>
+            </Grid>
+        </ui:Flyout>
+    </Grid>
+</UserControl>

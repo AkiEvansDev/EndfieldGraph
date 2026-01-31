@@ -1,0 +1,35 @@
+﻿<ui:FluentWindow 
+    x:Class="EndfieldGraph.Views.Windows.GraphWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:controls="clr-namespace:EndfieldGraph.Views.Controls"
+    xmlns:local="clr-namespace:EndfieldGraph.Views"
+    mc:Ignorable="d"
+    Width="1200" 
+    Height="800"
+    Title="Graph Window"
+    x:Name="Root">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar
+            Grid.Row="0"
+            Title="{Binding Title, ElementName=Root}">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/Assets/Icons/icon.png" />
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
+        
+        <controls:ResourceGraphView 
+            x:Name="GraphView"
+            Grid.Row="1"/>
+    </Grid>
+    
+</ui:FluentWindow>

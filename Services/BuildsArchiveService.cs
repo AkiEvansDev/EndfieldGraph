@@ -9,11 +9,13 @@ public interface IBuildsArchiveService
         string path,
         IReadOnlyCollection<ResourceRecord> tabs,
         IReadOnlyCollection<ResourceRecord> resources,
-        CancellationToken ct = default);
+        CancellationToken ct = default
+    );
 
     Task<(IReadOnlyList<ResourceRecord> Tabs, IReadOnlyList<ResourceRecord> Resources)> ImportAsync(
         string path,
-        CancellationToken ct = default);
+        CancellationToken ct = default
+    );
 }
 
 public sealed class BuildsArchiveService(IResourcesArchiveService archive) : IBuildsArchiveService
@@ -25,7 +27,8 @@ public sealed class BuildsArchiveService(IResourcesArchiveService archive) : IBu
         string path,
         IReadOnlyCollection<ResourceRecord> tabs,
         IReadOnlyCollection<ResourceRecord> resources,
-        CancellationToken ct = default)
+        CancellationToken ct = default
+    )
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
 
@@ -61,7 +64,8 @@ public sealed class BuildsArchiveService(IResourcesArchiveService archive) : IBu
 
     public async Task<(IReadOnlyList<ResourceRecord> Tabs, IReadOnlyList<ResourceRecord> Resources)> ImportAsync(
         string path,
-        CancellationToken ct = default)
+        CancellationToken ct = default
+    )
     {
         if (!File.Exists(path))
             throw new FileNotFoundException("Builds archive not found.", path);

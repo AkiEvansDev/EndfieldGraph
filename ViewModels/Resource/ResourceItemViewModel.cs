@@ -16,7 +16,7 @@ public partial class ResourceItemViewModel(Guid id, string name, byte[] iconPngB
     [ObservableProperty] private int craftTimeSec = 2;
 
     public byte[] IconPngBytes { get; private set; } = iconPngBytes;
-    
+
     public ObservableCollection<ResourceInputViewModel> Inputs { get; } = [];
 
     public void SetIcon(byte[] newPngBytes)

@@ -22,8 +22,18 @@ public sealed record ResourceRecord(
 
 public interface IResourcesArchiveService
 {
-    Task ExportAsync(string archivePath, IReadOnlyCollection<ResourceRecord> resources, CancellationToken ct = default);
-    Task<IReadOnlyList<ResourceRecord>> ImportAsync(string archivePath, ImportMode mode, IReadOnlyCollection<ResourceRecord> existing, CancellationToken ct = default);
+    Task ExportAsync(
+        string archivePath,
+        IReadOnlyCollection<ResourceRecord> resources,
+        CancellationToken ct = default
+    );
+
+    Task<IReadOnlyList<ResourceRecord>> ImportAsync(
+        string archivePath,
+        ImportMode mode,
+        IReadOnlyCollection<ResourceRecord> existing,
+        CancellationToken ct = default
+    );
 }
 
 public sealed class ResourcesArchiveService : IResourcesArchiveService
@@ -33,7 +43,11 @@ public sealed class ResourcesArchiveService : IResourcesArchiveService
         WriteIndented = true
     };
 
-    public async Task ExportAsync(string archivePath, IReadOnlyCollection<ResourceRecord> resources, CancellationToken ct = default)
+    public async Task ExportAsync(
+        string archivePath,
+        IReadOnlyCollection<ResourceRecord> resources,
+        CancellationToken ct = default
+    )
     {
         Directory.CreateDirectory(Path.GetDirectoryName(archivePath) ?? ".");
 
@@ -141,7 +155,12 @@ public sealed class ResourcesArchiveService : IResourcesArchiveService
         File.Move(tmp, target);
     }
 
-    public async Task<IReadOnlyList<ResourceRecord>> ImportAsync(string archivePath, ImportMode mode, IReadOnlyCollection<ResourceRecord> existing, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ResourceRecord>> ImportAsync(
+        string archivePath,
+        ImportMode mode,
+        IReadOnlyCollection<ResourceRecord> existing,
+        CancellationToken ct = default
+    )
     {
         if (!File.Exists(archivePath))
             throw new FileNotFoundException("Archive not found.", archivePath);
@@ -192,8 +211,8 @@ public sealed class ResourcesArchiveService : IResourcesArchiveService
                 continue;
 
             imported.Add(new ResourceRecord(
-                dto.Id, 
-                dto.Name?.Trim() ?? "", 
+                dto.Id,
+                dto.Name?.Trim() ?? "",
                 bytes,
                 dto.OutputQty <= 0 ? 1 : dto.OutputQty,
                 dto.CraftTimeSec,
@@ -211,7 +230,10 @@ public sealed class ResourcesArchiveService : IResourcesArchiveService
         };
     }
 
-    private static IReadOnlyList<ResourceRecord> Merge(IReadOnlyCollection<ResourceRecord> existing, IReadOnlyCollection<ResourceRecord> imported)
+    private static IReadOnlyList<ResourceRecord> Merge(
+        IReadOnlyCollection<ResourceRecord> existing,
+        IReadOnlyCollection<ResourceRecord> imported
+    )
     {
         var map = existing.ToDictionary(x => x.Id, x => x);
 

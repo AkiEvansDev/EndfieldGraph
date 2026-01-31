@@ -2,7 +2,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using System.Drawing;
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
@@ -46,6 +45,7 @@ public partial class App
                 _ = services.AddSingleton<ITabsStore, TabsStore>();
                 _ = services.AddSingleton<IBuildsArchiveService, BuildsArchiveService>();
                 _ = services.AddSingleton<IResourceGraphBuilder, ResourceGraphBuilder>();
+                _ = services.AddSingleton<IBuildsCalculationService, BuildsCalculationService>();
 
                 _ = services.AddTransient<Views.Windows.GraphWindow>();
             }

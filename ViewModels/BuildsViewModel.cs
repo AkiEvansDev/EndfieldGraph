@@ -18,6 +18,7 @@ public partial class BuildsViewModel : ViewModel
     private readonly ITabsStore tabsStore;
     private readonly ISnackbarService snackbar;
     private readonly IResourceGraphBuilder graphBuilder;
+    private readonly IBuildsCalculationService calc;
 
     private bool loadedOnce;
     private int suppressSaveDepth;
@@ -28,15 +29,22 @@ public partial class BuildsViewModel : ViewModel
     public ObservableCollection<BuildTabViewModel> Tabs { get; } = [];
 
     [ObservableProperty] private BuildTabViewModel? selected;
-
     [ObservableProperty] private ResourceGraphLayout graphLayout = new();
+    [ObservableProperty] private BuildCalcResult? calculation;
 
-    public BuildsViewModel(IResourcesStore resourcesStore, ITabsStore tabsStore, ISnackbarService snackbar, IResourceGraphBuilder graphBuilder)
+    public BuildsViewModel(
+        IResourcesStore resourcesStore,
+        ITabsStore tabsStore,
+        ISnackbarService snackbar,
+        IResourceGraphBuilder graphBuilder,
+        IBuildsCalculationService calc
+    )
     {
         this.resourcesStore = resourcesStore;
         this.tabsStore = tabsStore;
         this.snackbar = snackbar;
         this.graphBuilder = graphBuilder;
+        this.calc = calc;
 
         AllResourcesView = CollectionViewSource.GetDefaultView(AllResources);
         AllResourcesView.SortDescriptions.Add(new SortDescription(nameof(ResourceItemViewModel.Name), ListSortDirection.Ascending));
@@ -312,12 +320,14 @@ public partial class BuildsViewModel : ViewModel
         if (Selected is null)
         {
             GraphLayout = new ResourceGraphLayout();
+            Calculation = null;
             return;
         }
 
         if (Selected.Goals.Count == 0)
         {
             GraphLayout = new ResourceGraphLayout();
+            Calculation = null;
             return;
         }
 
@@ -336,5 +346,12 @@ public partial class BuildsViewModel : ViewModel
         }
 
         GraphLayout = graphBuilder.ComposeVertical(layouts, gapY: 160);
+
+        var goals = Selected.Goals
+            .Where(g => g.Id != Guid.Empty && g.Qty > 0)
+            .Select(g => new BuildGoalSpec(g.Id, g.Qty))
+            .ToList();
+
+        Calculation = calc.Calculate(goals, AllResources);
     }
 }

@@ -7,7 +7,6 @@ using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Text.Json;
 using System.Windows.Data;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
@@ -31,24 +30,18 @@ public partial class ResourcesViewModel : ViewModel
 
     public ICollectionView ResourcesView { get; }
 
-    [ObservableProperty]
-    private ResourceItemViewModel? selected;
-
-    [ObservableProperty]
-    private string searchText = "";
-
-    [ObservableProperty]
-    private bool sortAscending = true;
-
-    [ObservableProperty] 
-    private string graphWarning = "";
+    [ObservableProperty] private ResourceItemViewModel? selected;
+    [ObservableProperty] private string searchText = "";
+    [ObservableProperty] private bool sortAscending = true;
+    [ObservableProperty] private string graphWarning = "";
 
     public ResourcesViewModel(
-        IResourcesStore store, 
-        IContentDialogService dialog, 
+        IResourcesStore store,
+        IContentDialogService dialog,
         ISnackbarService snackbar,
         IResourceGraphBuilder graphBuilder,
-        IServiceProvider services)
+        IServiceProvider services
+    )
     {
         this.store = store;
         this.dialog = dialog;
@@ -97,12 +90,12 @@ public partial class ResourcesViewModel : ViewModel
     {
         ResourcesView.Refresh();
     }
-    
+
     partial void OnSortAscendingChanged(bool value)
     {
         ApplySorting();
     }
-    
+
     partial void OnSelectedChanged(ResourceItemViewModel? value)
     {
         DeleteSelectedCommand.NotifyCanExecuteChanged();
@@ -128,8 +121,8 @@ public partial class ResourcesViewModel : ViewModel
     private void AddResource()
     {
         var vm = new ResourceItemViewModel(
-            Guid.NewGuid(), 
-            string.IsNullOrWhiteSpace(SearchText) ? "_ New Resource" : SearchText, 
+            Guid.NewGuid(),
+            string.IsNullOrWhiteSpace(SearchText) ? "_ New Resource" : SearchText,
             DefaultIcons.ResourcePlaceholderPng
         );
 
@@ -385,7 +378,7 @@ public partial class ResourcesViewModel : ViewModel
 
         try
         {
-            ApplyChangesToStore(); 
+            ApplyChangesToStore();
             await store.ExportAsync(sfd.FileName);
         }
         catch (Exception ex)

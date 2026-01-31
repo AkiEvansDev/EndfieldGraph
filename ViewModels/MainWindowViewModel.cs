@@ -8,14 +8,9 @@ public partial class MainWindowViewModel : ViewModel
 {
     private bool isInitialized = false;
 
-    [ObservableProperty]
-    private string applicationTitle = string.Empty;
-
-    [ObservableProperty]
-    private ObservableCollection<object> navigationItems = [];
-
-    [ObservableProperty]
-    private ObservableCollection<object> navigationFooter = [];
+    [ObservableProperty] private string applicationTitle = string.Empty;
+    [ObservableProperty] private ObservableCollection<object> navigationItems = [];
+    [ObservableProperty] private ObservableCollection<object> navigationFooter = [];
 
     public MainWindowViewModel()
     {

@@ -1,5 +1,4 @@
-﻿using EndfieldGraph.Views.Controls;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Wpf.Ui;
@@ -30,7 +29,7 @@ public partial class MainWindow : INavigationWindow
 
     public bool Navigate(Type pageType) => RootNavigation.Navigate(pageType);
 
-    public void SetPageService(INavigationViewPageProvider navigationViewPageProvider) 
+    public void SetPageService(INavigationViewPageProvider navigationViewPageProvider)
         => RootNavigation.SetPageProviderService(navigationViewPageProvider);
 
     public void ShowWindow() => Show();

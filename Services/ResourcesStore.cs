@@ -1,5 +1,4 @@
 ﻿using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
@@ -116,7 +115,7 @@ public class ResourcesStore : IResourcesStore
 
     private static byte[] ReadResourceBytes(string packUri)
     {
-        var info = Application.GetResourceStream(new Uri(packUri, UriKind.Absolute)) 
+        var info = Application.GetResourceStream(new Uri(packUri, UriKind.Absolute))
             ?? throw new FileNotFoundException($"Resource not found: {packUri}");
 
         using var s = info.Stream;

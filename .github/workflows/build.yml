@@ -1,5 +1,8 @@
 name: Build WPF Release
 
+permissions:
+  contents: write
+  
 on:
   release:
     types: [created]
@@ -31,6 +34,8 @@ jobs:
 
       - name: Upload exe to release
         uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: |
-            EndfieldGraph/bin/Release/net10.0-windows/win-x64/publish/EndfieldGraph.exe
+            bin/Release/net10.0-windows/win-x64/publish/EndfieldGraph.exe

@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using EndfieldGraph.Services;
 using EndfieldGraph.ViewModels.Resource;
+using EndfieldGraph.Views.Controls;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -16,6 +17,7 @@ public partial class BuildsViewModel : ViewModel
     private readonly IResourcesStore resourcesStore;
     private readonly ITabsStore tabsStore;
     private readonly ISnackbarService snackbar;
+    private readonly IResourceGraphBuilder graphBuilder;
 
     private bool loadedOnce;
     private int suppressSaveDepth;
@@ -27,11 +29,14 @@ public partial class BuildsViewModel : ViewModel
 
     [ObservableProperty] private BuildTabViewModel? selected;
 
-    public BuildsViewModel(IResourcesStore resourcesStore, ITabsStore tabsStore, ISnackbarService snackbar)
+    [ObservableProperty] private ResourceGraphLayout graphLayout = new();
+
+    public BuildsViewModel(IResourcesStore resourcesStore, ITabsStore tabsStore, ISnackbarService snackbar, IResourceGraphBuilder graphBuilder)
     {
         this.resourcesStore = resourcesStore;
         this.tabsStore = tabsStore;
         this.snackbar = snackbar;
+        this.graphBuilder = graphBuilder;
 
         AllResourcesView = CollectionViewSource.GetDefaultView(AllResources);
         AllResourcesView.SortDescriptions.Add(new SortDescription(nameof(ResourceItemViewModel.Name), ListSortDirection.Ascending));
@@ -82,6 +87,8 @@ public partial class BuildsViewModel : ViewModel
                     Selected = cur;
                 }
             }
+
+            RebuildGraphForSelected();
         }
         catch (Exception ex)
         {
@@ -90,6 +97,11 @@ public partial class BuildsViewModel : ViewModel
                 TimeSpan.FromSeconds(6)
             );
         }
+    }
+
+    partial void OnSelectedChanged(BuildTabViewModel? value)
+    {
+        RebuildGraphForSelected();
     }
 
     private void SyncTabsWithResources()
@@ -184,7 +196,11 @@ public partial class BuildsViewModel : ViewModel
     }
 
     private void OnTabPropertyChanged(object? sender, PropertyChangedEventArgs e) => SaveTabsSnapshot();
-    private void OnTabGoalsChanged() => SaveTabsSnapshot();
+    private void OnTabGoalsChanged()
+    {
+        SaveTabsSnapshot();
+        RebuildGraphForSelected();
+    }
 
     [RelayCommand]
     private void AddTab()
@@ -289,5 +305,36 @@ public partial class BuildsViewModel : ViewModel
                 TimeSpan.FromSeconds(6)
             );
         }
+    }
+
+    private void RebuildGraphForSelected()
+    {
+        if (Selected is null)
+        {
+            GraphLayout = new ResourceGraphLayout();
+            return;
+        }
+
+        if (Selected.Goals.Count == 0)
+        {
+            GraphLayout = new ResourceGraphLayout();
+            return;
+        }
+
+        var layouts = new List<ResourceGraphLayout>();
+
+        foreach (var goal in Selected.Goals.Where(g => g.Id != Guid.Empty && g.Qty > 0))
+        {
+            var root = AllResources.FirstOrDefault(r => r.Id == goal.Id);
+            if (root is null) continue;
+
+            var res = graphBuilder.BuildFor(root, AllResources, desiredRootUnits: Math.Max(1, goal.Qty));
+            if (res.HasCycle || res.Layout is null)
+                continue;
+
+            layouts.Add(res.Layout);
+        }
+
+        GraphLayout = graphBuilder.ComposeVertical(layouts, gapY: 160);
     }
 }

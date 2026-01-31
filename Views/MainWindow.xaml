@@ -10,6 +10,7 @@
     mc:Ignorable="d"
     Width="1200" 
     Height="800"
+    WindowState="Maximized"
     d:DataContext="{d:DesignInstance local:MainWindow, IsDesignTimeCreatable=True}"
     Title="{Binding ViewModel.ApplicationTitle, Mode=OneWay}">
 

@@ -14,6 +14,8 @@ public sealed record ResourceGraphBuildResult(
 
 public interface IResourceGraphBuilder
 {
+    ResourceGraphLayout ComposeVertical(IReadOnlyList<ResourceGraphLayout> parts, double gapY);
+
     ResourceGraphBuildResult BuildFor(
         ResourceItemViewModel root,
         IReadOnlyCollection<ResourceItemViewModel> allResources,
@@ -27,6 +29,84 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
     private const double YStep = 150;
     private const double MarginLeft = 140;
     private const double MarginTop = 120;
+
+    public ResourceGraphLayout ComposeVertical(IReadOnlyList<ResourceGraphLayout> parts, double gapY)
+    {
+        var result = new ResourceGraphLayout();
+
+        double curY = 0;
+
+        foreach (var part in parts)
+        {
+            if (part.Nodes.Count == 0)
+                continue;
+
+            double minX = double.MaxValue, minY = double.MaxValue;
+            double maxX = double.MinValue, maxY = double.MinValue;
+
+            foreach (var n in part.Nodes)
+            {
+                minX = Math.Min(minX, n.Position.X);
+                minY = Math.Min(minY, n.Position.Y);
+                maxX = Math.Max(maxX, n.Position.X);
+                maxY = Math.Max(maxY, n.Position.Y);
+            }
+
+            var height = Math.Max(1, maxY - minY);
+
+            var idMap = new Dictionary<Guid, Guid>();
+            foreach (var n in part.Nodes)
+                idMap[n.Id] = Guid.NewGuid();
+
+            foreach (var n in part.Nodes)
+            {
+                var newId = idMap[n.Id];
+                var newPos = new Point(
+                    x: n.Position.X - minX + 140,
+                    y: n.Position.Y - minY + curY + 120
+                );
+
+                result.Nodes.Add(new ResourceGraphNode
+                {
+                    Id = newId,
+                    Name = n.Name,
+                    Icon = n.Icon,
+                    Level = n.Level,
+                    Position = newPos
+                });
+            }
+
+            foreach (var e in part.Edges)
+            {
+                if (!idMap.TryGetValue(e.FromId, out var nf)) continue;
+                if (!idMap.TryGetValue(e.ToId, out var nt)) continue;
+
+                result.Edges.Add(new ResourceGraphEdge
+                {
+                    FromId = nf,
+                    ToId = nt,
+                    NeedQty = e.NeedQty,
+                    TimeSec = e.TimeSec
+                });
+            }
+
+            foreach (var ol in part.OutLabels)
+            {
+                if (!idMap.TryGetValue(ol.FromId, out var nf)) continue;
+
+                result.OutLabels.Add(new ResourceGraphOutLabel
+                {
+                    FromId = nf,
+                    NeedQty = ol.NeedQty,
+                    TimeSec = ol.TimeSec
+                });
+            }
+
+            curY += height + gapY;
+        }
+
+        return result;
+    }
 
     public ResourceGraphBuildResult BuildFor(
         ResourceItemViewModel root,

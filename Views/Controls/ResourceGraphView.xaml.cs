@@ -24,7 +24,7 @@ public partial class ResourceGraphView : UserControl
 
     private const double NodeRadius = 34;
     private const double NodeDiameter = NodeRadius * 2;
-    private const double NodeLabelWidth = 68;
+    private const double NodeLabelWidth = 80;
     private const double EdgeStroke = 2.0;
 
     private readonly Dictionary<Guid, FrameworkElement> nodeVisualById = [];

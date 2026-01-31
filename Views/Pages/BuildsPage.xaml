@@ -32,7 +32,6 @@
         VerticalAlignment="Stretch"
         VerticalContentAlignment="Stretch">
         <Grid>
-
             <TabControl 
                 Grid.Row="2"
                 VerticalAlignment="Stretch"
@@ -92,7 +91,7 @@
                     <DataTemplate>
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="380"/>
+                                <ColumnDefinition Width="538"/>
                                 <ColumnDefinition Width="12"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
@@ -106,21 +105,30 @@
                                 Grid.Column="0"
                                 Grid.Row="0"
                                 VerticalAlignment="Stretch"
-                                VerticalContentAlignment="Top">
+                                VerticalContentAlignment="Top"
+                                BorderThickness="0">
                                 <ui:TextBlock 
                                     Text="Calculation (coming soon)"
                                     Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                             </ui:Card>
 
-                            <ui:Card 
+                            <controls:ResourceGraphView
+                                Grid.Row="0"
+                                Grid.Column="2"
+                                Grid.RowSpan="3"
+                                VerticalAlignment="Stretch"
+                                VerticalContentAlignment="Stretch"
+                                Layout="{Binding DataContext.ViewModel.GraphLayout, RelativeSource={RelativeSource AncestorType=Page}}"/>
+
+                            <ui:Card
                                 Grid.Column="0"
-                                Grid.ColumnSpan="3"
                                 Grid.Row="2"
                                 VerticalAlignment="Stretch"
-                                VerticalContentAlignment="Stretch">
+                                VerticalContentAlignment="Stretch"
+                                BorderThickness="0">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="326"/>
+                                        <ColumnDefinition Width="300"/>
                                         <ColumnDefinition Width="6"/>
                                         <ColumnDefinition/>
                                     </Grid.ColumnDefinitions>
@@ -142,7 +150,7 @@
                                         </ui:Button.Icon>
                                     </ui:Button>
 
-                                    <ui:TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Count:"/>
+                                    <ui:TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Count (per min):"/>
 
                                     <ui:DynamicScrollViewer
                                         Grid.Row="2"
@@ -153,7 +161,7 @@
                                                 <DataTemplate>
                                                     <Grid Margin="0 0 0 6">
                                                         <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="326"/>
+                                                            <ColumnDefinition Width="300"/>
                                                             <ColumnDefinition Width="6"/>
                                                             <ColumnDefinition Width="160"/>
                                                             <ColumnDefinition Width="6"/>
@@ -196,17 +204,6 @@
                                         </ItemsControl>
                                     </ui:DynamicScrollViewer>
                                 </Grid>
-                            </ui:Card>
-
-                            <ui:Card 
-                                Grid.Column="2"
-                                VerticalAlignment="Stretch"
-                                VerticalContentAlignment="Stretch">
-                                <ui:TextBlock 
-                                    Text="Graph will be here (next step)"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                             </ui:Card>
                         </Grid>
                     </DataTemplate>

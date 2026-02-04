@@ -18,7 +18,7 @@ public sealed class Resource
     public List<ResourceInput> Inputs { get; set; } = [];
 }
 
-public sealed class ResourceManifest
+public sealed class ResourcesManifest
 {
     public int Version { get; set; } = 2;
     public List<Resource> Resources { get; set; } = [];

@@ -41,9 +41,13 @@ public partial class App
                 _ = services.AddSingleton<ISnackbarService, SnackbarService>();
 
                 _ = services.AddSingleton<IArchiveCodec<ResourceRecord>, ResourcesArchiveCodec>();
-                
+                _ = services.AddSingleton<IArchiveCodec<BuildRecord>, BuildsArchiveCodec>();
+
                 _ = services.AddSingleton<IArchiveService<ResourceRecord>>(sp =>
                     new ZipArchiveService<ResourceRecord>(sp.GetRequiredService<IArchiveCodec<ResourceRecord>>())
+                );
+                _ = services.AddSingleton<IArchiveService<BuildRecord>>(sp =>
+                    new ZipArchiveService<BuildRecord>(sp.GetRequiredService<IArchiveCodec<BuildRecord>>())
                 );
 
                 _ = services.AddSingleton<IResourcesStore, ResourcesStore>();

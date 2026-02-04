@@ -25,8 +25,8 @@ public partial class BuildsViewModel : BaseViewModel
     private readonly IResourceGraphBuilder graphBuilder;
     private readonly IBuildCalculationService calc;
 
-    private bool loadedOnce;
-    private int suppressSaveDepth;
+    private readonly ReentrancyGuard saveGuard = new();
+    private bool loadedOnce = false;
 
     public ObservableCollection<ResourceViewModel> AllResources { get; } = [];
     public ICollectionView AllResourcesView { get; }
@@ -137,7 +137,7 @@ public partial class BuildsViewModel : BaseViewModel
         SaveTabsSnapshot();
     }
 
-    private void OnTabPropertyChanged(object? sender, PropertyChangedEventArgs e) 
+    private void OnTabPropertyChanged(object? sender, PropertyChangedEventArgs e)
         => SaveTabsSnapshot();
 
     private void OnTabGoalsChanged()
@@ -263,7 +263,7 @@ public partial class BuildsViewModel : BaseViewModel
 
     private void LoadTabsFromStore()
     {
-        using (SuppressSaveScope())
+        using (saveGuard.Suppress())
         {
             Tabs.Clear();
 
@@ -271,7 +271,7 @@ public partial class BuildsViewModel : BaseViewModel
             {
                 var tab = new BuildViewModel(rec.Id, string.IsNullOrWhiteSpace(rec.Name) ? "Build" : rec.Name);
 
-                foreach (var (id, count) in rec.Inputs)
+                foreach (var (id, count) in rec.Goals)
                     tab.Goals.Add(new InputViewModel(id, count));
 
                 Tabs.Add(tab);
@@ -281,19 +281,17 @@ public partial class BuildsViewModel : BaseViewModel
 
     private void SaveTabsSnapshot()
     {
-        if (suppressSaveDepth > 0) return;
+        if (saveGuard.IsSuppressed)
+            return;
 
         try
         {
             var records = Tabs
                 .Where(t => t.Id != Guid.Empty)
-                .Select(t => new ResourceRecord(
+                .Select(t => new BuildRecord(
                     t.Id,
                     (t.Name ?? "").Trim(),
-                    DefaultIcons.ResourcePlaceholderPng,
-                    Count: 1,
-                    Seconds: 0,
-                    Inputs: [.. t.Goals
+                    Goals: [.. t.Goals
                         .Where(g => g.Id != Guid.Empty && g.Count > 0)
                         .Select(g => (g.Id, Math.Max(1, g.Count)))]
                 ))
@@ -348,16 +346,5 @@ public partial class BuildsViewModel : BaseViewModel
             .ToList();
 
         Calculation = calc.Calculate(goals, AllResources);
-    }
-
-    private Scope SuppressSaveScope()
-    {
-        suppressSaveDepth++;
-        return new Scope(() => suppressSaveDepth = Math.Max(0, suppressSaveDepth - 1));
-    }
-
-    private sealed class Scope(Action onDispose) : IDisposable
-    {
-        public void Dispose() => onDispose();
     }
 }

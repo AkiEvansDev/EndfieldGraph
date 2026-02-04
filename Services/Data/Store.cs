@@ -1,7 +1,5 @@
 ﻿using System.Collections.ObjectModel;
 using System.IO;
-using System.Windows;
-using System.Windows.Threading;
 
 namespace EndfieldGraph.Services.Data;
 
@@ -33,8 +31,8 @@ public class Store<T> : IStore<T>
     private readonly ObservableCollection<T> items = [];
     public ReadOnlyObservableCollection<T> Items { get; }
 
-    private readonly DispatcherTimer debounceTimer;
     private readonly SemaphoreSlim ioGate = new(1, 1);
+    private Timer? debounceTimer;
 
     private bool initialized;
     private bool dirty;
@@ -53,20 +51,6 @@ public class Store<T> : IStore<T>
         LocalPath = localPath;
 
         Items = new ReadOnlyObservableCollection<T>(items);
-
-        debounceTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(600)
-        };
-        debounceTimer.Tick += async (_, __) =>
-        {
-            try
-            {
-                debounceTimer.Stop();
-                await FlushAsync();
-            }
-            catch { }
-        };
     }
 
     public async Task InitializeAsync(CancellationToken ct = default)
@@ -78,7 +62,7 @@ public class Store<T> : IStore<T>
         try
         {
             if (!File.Exists(LocalPath) && ShouldSeedOnEmpty)
-                TrySeed();
+                SeedIfNeeded();
 
             var imported = File.Exists(LocalPath)
                 ? await archive.ImportAsync(LocalPath, ImportMode.ReplaceAll, existing: [], ct)
@@ -86,7 +70,7 @@ public class Store<T> : IStore<T>
 
             if (imported.Count == 0 && ShouldSeedOnEmpty)
             {
-                TrySeed();
+                SeedIfNeeded();
                 imported = await archive.ImportAsync(LocalPath, ImportMode.ReplaceAll, existing: [], ct);
             }
 
@@ -105,27 +89,7 @@ public class Store<T> : IStore<T>
         }
     }
 
-    private void TrySeed()
-    {
-        if (DefaultSeedPackUri is null)
-            return;
-
-        Directory.CreateDirectory(Path.GetDirectoryName(LocalPath) ?? ".");
-
-        var bytes = ReadResourceBytes(DefaultSeedPackUri);
-        File.WriteAllBytes(LocalPath, bytes);
-    }
-
-    private static byte[] ReadResourceBytes(string packUri)
-    {
-        var info = Application.GetResourceStream(new Uri(packUri, UriKind.Absolute))
-            ?? throw new FileNotFoundException($"Resource not found: {packUri}");
-
-        using var s = info.Stream;
-        using var ms = new MemoryStream();
-        s.CopyTo(ms);
-        return ms.ToArray();
-    }
+    protected virtual void SeedIfNeeded() { }
 
     public async Task ImportAsync(string archivePath, ImportMode mode, CancellationToken ct = default)
     {
@@ -243,10 +207,14 @@ public class Store<T> : IStore<T>
     {
         dirty = true;
 
-        if (batchDepth == 0)
+        if (batchDepth != 0)
+            return;
+
+        debounceTimer?.Dispose();
+        debounceTimer = new Timer(async _ =>
         {
-            debounceTimer.Stop();
-            debounceTimer.Start();
-        }
+            try { await FlushAsync().ConfigureAwait(false); }
+            catch { }
+        }, null, dueTime: 600, period: Timeout.Infinite);
     }
 }

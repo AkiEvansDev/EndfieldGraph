@@ -1,8 +1,5 @@
 ﻿using EndfieldGraph.Models;
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Text.Json;
 
 namespace EndfieldGraph.Services.Data.Resources;
@@ -51,7 +48,7 @@ public sealed class ResourcesArchiveCodec : IArchiveCodec<ResourceRecord>
     {
         var list = items.ToList();
 
-        var manifest = new ResourceManifest
+        var manifest = new ResourcesManifest
         {
             Version = 2,
             Resources = [.. list
@@ -79,13 +76,13 @@ public sealed class ResourcesArchiveCodec : IArchiveCodec<ResourceRecord>
 
     public async Task<object> DeserializeManifestAsync(Stream stream, CancellationToken ct)
     {
-        var manifest = await JsonSerializer.DeserializeAsync<ResourceManifest>(stream, JsonOptions, ct);
+        var manifest = await JsonSerializer.DeserializeAsync<ResourcesManifest>(stream, JsonOptions, ct);
         return manifest ?? throw new InvalidDataException("Failed to read manifest.json");
     }
 
     public IReadOnlyList<string> GetRequiredAssetPaths(object manifestObj)
     {
-        var manifest = (ResourceManifest)manifestObj;
+        var manifest = (ResourcesManifest)manifestObj;
 
         manifest.Version = manifest.Version == 0 ? 1 : manifest.Version;
 
@@ -108,7 +105,7 @@ public sealed class ResourcesArchiveCodec : IArchiveCodec<ResourceRecord>
 
     public IReadOnlyList<ResourceRecord> Decode(object manifestObj, IReadOnlyDictionary<string, byte[]> assetsByPath)
     {
-        var manifest = (ResourceManifest)manifestObj;
+        var manifest = (ResourcesManifest)manifestObj;
         if (manifest.Resources is null)
             return [];
 

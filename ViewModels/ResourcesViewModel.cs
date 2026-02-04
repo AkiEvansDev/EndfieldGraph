@@ -1,11 +1,9 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using EndfieldGraph.Models;
 using EndfieldGraph.Services;
 using EndfieldGraph.Services.Data;
 using EndfieldGraph.Services.Data.Resources;
 using EndfieldGraph.Services.Helpers;
-using EndfieldGraph.ViewModels.Build;
 using EndfieldGraph.ViewModels.Common;
 using EndfieldGraph.ViewModels.Resource;
 using EndfieldGraph.Views.Windows;
@@ -27,8 +25,8 @@ public partial class ResourcesViewModel : BaseViewModel
     private readonly IResourceGraphBuilder graphBuilder;
     private readonly IServiceProvider services;
 
+    private readonly ReentrancyGuard saveGuard = new();
     private bool loadedOnce = false;
-    private int suppressSaveDepth = 0;
 
     public ObservableCollection<ResourceViewModel> Resources { get; } = [];
     public IEnumerable<ResourceViewModel> InputResources => Resources
@@ -338,7 +336,7 @@ public partial class ResourcesViewModel : BaseViewModel
 
     private void RequestSave()
     {
-        if (suppressSaveDepth > 0)
+        if (saveGuard.IsSuppressed)
             return;
 
         ApplyChangesToStore();
@@ -405,7 +403,7 @@ public partial class ResourcesViewModel : BaseViewModel
 
     private void LoadFromStore()
     {
-        using (SuppressSaveScope())
+        using (saveGuard.Suppress())
         {
             Resources.Clear();
 
@@ -457,16 +455,5 @@ public partial class ResourcesViewModel : BaseViewModel
             new SymbolIcon(SymbolRegular.ErrorCircle24),
             TimeSpan.FromSeconds(6)
         );
-    }
-
-    private Scope SuppressSaveScope()
-    {
-        suppressSaveDepth++;
-        return new Scope(() => suppressSaveDepth = Math.Max(0, suppressSaveDepth - 1));
-    }
-
-    private sealed class Scope(Action onDispose) : IDisposable
-    {
-        public void Dispose() => onDispose();
     }
 }

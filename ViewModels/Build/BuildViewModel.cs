@@ -39,7 +39,7 @@ public partial class BuildViewModel : ObservableObject
             g.PropertyChanged += OnGoalPropertyChanged;
     }
 
-    private void OnGoalPropertyChanged(object? sender, PropertyChangedEventArgs e) 
+    private void OnGoalPropertyChanged(object? sender, PropertyChangedEventArgs e)
         => GoalsChanged?.Invoke();
 
     public void BeginRename()

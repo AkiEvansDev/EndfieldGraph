@@ -42,6 +42,6 @@ public partial class ResourceViewModel : ObservableObject
             i.PropertyChanged += OnInputPropertyChanged;
     }
 
-    private void OnInputPropertyChanged(object? sender, PropertyChangedEventArgs e) 
+    private void OnInputPropertyChanged(object? sender, PropertyChangedEventArgs e)
         => InputsChanged?.Invoke();
 }

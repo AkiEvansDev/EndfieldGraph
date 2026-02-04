@@ -144,6 +144,17 @@ public partial class ResourceGraphView : UserControl
 
         if (node.Icon is not null)
         {
+            var bgEllipse = new Ellipse
+            {
+                Width = NodeDiameter,
+                Height = NodeDiameter,
+                Fill = new SolidColorBrush(Color.FromRgb(32, 32, 32))
+            };
+
+            Canvas.SetLeft(bgEllipse, (container.Width - NodeDiameter) / 2);
+            Canvas.SetTop(bgEllipse, 0);
+            container.Children.Add(bgEllipse);
+
             ellipse.Fill = new ImageBrush(IconPngConverter.ToBitmapImage(node.Icon))
             {
                 Stretch = Stretch.UniformToFill,
@@ -272,42 +283,89 @@ public partial class ResourceGraphView : UserControl
         var to = Layout.Nodes.FirstOrDefault(n => n.Id == edge.ToId);
         if (from is null || to is null) return;
 
-        var start = new Point(from.Position.X - NodeRadius, from.Position.Y);
-        var end = new Point(to.Position.X + NodeRadius, to.Position.Y);
-
-        const double bendOffset = 26;
-        var bendX = end.X + bendOffset;
-
-        bendX = Math.Min(bendX, start.X - 20);
-
-        var fig = new PathFigure { StartPoint = start, IsClosed = false, IsFilled = false };
-        fig.Segments.Add(new LineSegment(new Point(bendX, start.Y), true));
-        fig.Segments.Add(new LineSegment(new Point(bendX, end.Y), true));
-        fig.Segments.Add(new LineSegment(end, true));
-
-        var geometry = new PathGeometry();
-        geometry.Figures.Add(fig);
-
-        var path = new Path
+        if (edge.IsDashed)
         {
-            Data = geometry,
-            Stroke = (Brush)FindResource("TextFillColorSecondaryBrush"),
-            StrokeThickness = EdgeStroke,
-            SnapsToDevicePixels = true
-        };
+            var p1 = new Point(from.Position.X, from.Position.Y);
+            var p2 = new Point(to.Position.X, to.Position.Y);
 
-        SceneCanvas.Children.Add(path);
-        edgeVisuals.Add(path);
+            var mid = new Point((p1.X + p2.X) / 2.0, (p1.Y + p2.Y) / 2.0);
+            var dx = p2.X - p1.X;
+            var dy = p2.Y - p1.Y;
 
-        edgePathByKey[(edge.FromId, edge.ToId)] = path;
+            var len = Math.Max(1.0, Math.Sqrt(dx * dx + dy * dy));
+            var nx = -dy / len;
+            var ny = dx / len;
 
-        if (!edgePathsByNode.TryGetValue(edge.FromId, out var listFrom))
-            edgePathsByNode[edge.FromId] = listFrom = [];
-        listFrom.Add(path);
+            var arc = -(NodeLabelWidth + NodeRadius);
+            var ctrl = new Point(mid.X + nx * arc, mid.Y + ny * arc);
 
-        if (!edgePathsByNode.TryGetValue(edge.ToId, out var listTo))
-            edgePathsByNode[edge.ToId] = listTo = [];
-        listTo.Add(path);
+            var fig = new PathFigure { StartPoint = p1, IsClosed = false, IsFilled = false };
+            fig.Segments.Add(new QuadraticBezierSegment(ctrl, p2, true));
+
+            var geometry = new PathGeometry();
+            geometry.Figures.Add(fig);
+
+            var path = new Path
+            {
+                Data = geometry,
+                Stroke = (Brush)FindResource("TextFillColorSecondaryBrush"),
+                StrokeThickness = EdgeStroke,
+                SnapsToDevicePixels = true,
+                StrokeDashArray = [6, 6]
+            };
+
+            SceneCanvas.Children.Add(path);
+            edgeVisuals.Add(path);
+
+            edgePathByKey[(edge.FromId, edge.ToId)] = path;
+
+            if (!edgePathsByNode.TryGetValue(edge.FromId, out var listFrom))
+                edgePathsByNode[edge.FromId] = listFrom = [];
+            listFrom.Add(path);
+
+            if (!edgePathsByNode.TryGetValue(edge.ToId, out var listTo))
+                edgePathsByNode[edge.ToId] = listTo = [];
+            listTo.Add(path);
+        }
+        else
+        {
+            var start = new Point(from.Position.X - NodeRadius, from.Position.Y);
+            var end = new Point(to.Position.X + NodeRadius, to.Position.Y);
+
+            const double bendOffset = 26;
+            var bendX = end.X + bendOffset;
+
+            bendX = Math.Min(bendX, start.X - 20);
+
+            var fig = new PathFigure { StartPoint = start, IsClosed = false, IsFilled = false };
+            fig.Segments.Add(new LineSegment(new Point(bendX, start.Y), true));
+            fig.Segments.Add(new LineSegment(new Point(bendX, end.Y), true));
+            fig.Segments.Add(new LineSegment(end, true));
+
+            var geometry = new PathGeometry();
+            geometry.Figures.Add(fig);
+
+            var path = new Path
+            {
+                Data = geometry,
+                Stroke = (Brush)FindResource("TextFillColorSecondaryBrush"),
+                StrokeThickness = EdgeStroke,
+                SnapsToDevicePixels = true
+            };
+
+            SceneCanvas.Children.Add(path);
+            edgeVisuals.Add(path);
+
+            edgePathByKey[(edge.FromId, edge.ToId)] = path;
+
+            if (!edgePathsByNode.TryGetValue(edge.FromId, out var listFrom))
+                edgePathsByNode[edge.FromId] = listFrom = [];
+            listFrom.Add(path);
+
+            if (!edgePathsByNode.TryGetValue(edge.ToId, out var listTo))
+                edgePathsByNode[edge.ToId] = listTo = [];
+            listTo.Add(path);
+        }
     }
 
     private void DrawOutLabels()

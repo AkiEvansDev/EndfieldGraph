@@ -1,5 +1,4 @@
 ﻿using EndfieldGraph.Models;
-using EndfieldGraph.Services.Helpers;
 using EndfieldGraph.ViewModels.Resource;
 using System.Windows;
 
@@ -34,7 +33,6 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
     public ResourceGraphLayout ComposeVertical(IReadOnlyList<ResourceGraphLayout> parts, double gapY)
     {
         var result = new ResourceGraphLayout();
-
         double curY = 0;
 
         foreach (var part in parts)
@@ -87,7 +85,8 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
                     FromId = nf,
                     ToId = nt,
                     NeedCount = e.NeedCount,
-                    TimeSeconds = e.TimeSeconds
+                    TimeSeconds = e.TimeSeconds,
+                    IsDashed = e.IsDashed,
                 });
             }
 
@@ -129,109 +128,155 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
             map[root.Id] = root;
 
         var reachable = new HashSet<Guid>();
-        var cycle = DetectCycle(root.Id, map, reachable);
-        if (cycle is not null)
-            return new ResourceGraphBuildResult(true, cycle, null);
+        var calcEdges = new HashSet<(Guid Product, Guid Ingredient)>();
+        CollectReachableAndCalcEdges(root.Id, map, reachable, calcEdges);
 
-        var topo = TopoOrder(root.Id, map, reachable);
+        if (reachable.Count == 0)
+            return new ResourceGraphBuildResult(false, null, new ResourceGraphLayout());
+
+        var sccs = TarjanScc(reachable, id => GetCalcChildren(id, reachable, calcEdges));
+
+        var removedCalcEdges = new HashSet<(Guid Product, Guid Ingredient)>();
+        var dashedDisplayEdges = new HashSet<(Guid From, Guid To)>();
+
+        bool allowAnyTwoNodeMutualIfOnlyTwoNodesInGraph = reachable.Count == 2;
+
+        var incomingFromOutside = BuildIncomingFromOutside(reachable, calcEdges);
+
+        foreach (var comp in sccs)
+        {
+            if (comp.Count <= 1)
+                continue;
+
+            if (comp.Count != 2)
+                return new ResourceGraphBuildResult(true, new GraphCycleInfo(comp.Concat([comp[0]]).ToList()), null);
+
+            var a = comp[0];
+            var b = comp[1];
+
+            bool hasAB = calcEdges.Contains((a, b));
+            bool hasBA = calcEdges.Contains((b, a));
+            if (!hasAB || !hasBA)
+                return new ResourceGraphBuildResult(true, new GraphCycleInfo(comp.Concat([comp[0]]).ToList()), null);
+
+            bool isSelfRenewable = IsSelfRenewablePair(a, b, map) || IsSelfRenewablePair(b, a, map);
+            bool allowed = isSelfRenewable || allowAnyTwoNodeMutualIfOnlyTwoNodesInGraph;
+
+            if (!allowed)
+                return new ResourceGraphBuildResult(true, new GraphCycleInfo(comp.Concat([comp[0]]).ToList()), null);
+
+            var near = PickNearNodeInTwoCycle(a, b, root.Id, incomingFromOutside);
+            var far = near == a ? b : a;
+
+            removedCalcEdges.Add((far, near));
+            dashedDisplayEdges.Add((From: near, To: far));
+        }
+
+        var calcChildren = reachable.ToDictionary(id => id, _ => new List<Guid>());
+        foreach (var (p, i) in calcEdges)
+        {
+            if (!reachable.Contains(p) || !reachable.Contains(i)) continue;
+            if (removedCalcEdges.Contains((p, i))) continue;
+            calcChildren[p].Add(i);
+        }
+
+        var realCycle = DetectAnyCycle(root.Id, reachable, calcChildren);
+        if (realCycle is not null)
+            return new ResourceGraphBuildResult(true, realCycle, null);
+
+        var topo = TopoSortFromRootPrefer(root.Id, reachable, calcChildren);
 
         var needUnits = reachable.ToDictionary(id => id, _ => 0);
         needUnits[root.Id] = desiredRootUnits;
 
         static int CeilDiv(int a, int b) => (a + b - 1) / b;
 
-        foreach (var parentId in topo)
+        foreach (var productId in topo)
         {
-            var parent = map[parentId];
+            var product = map[productId];
 
-            var needParentUnits = needUnits[parentId];
-            if (needParentUnits <= 0)
-                continue;
+            var needProductUnits = needUnits[productId];
+            if (needProductUnits <= 0) continue;
 
-            var parentOutput = Math.Max(1, parent.Count);
-            var parentCrafts = CeilDiv(needParentUnits, parentOutput);
+            var productOut = Math.Max(1, product.Count);
+            var productCrafts = CeilDiv(needProductUnits, productOut);
 
-            foreach (var input in parent.Inputs)
+            foreach (var ingId in calcChildren[productId])
             {
-                var childId = input.Id;
-                if (childId == Guid.Empty)
-                    continue;
-                if (!reachable.Contains(childId))
-                    continue;
-
-                var q = Math.Max(1, input.Count);
-                needUnits[childId] += parentCrafts * q;
+                var q = GetInputCount(product, ingId);
+                needUnits[ingId] += productCrafts * q;
             }
         }
 
-        var edges = new List<ResourceGraphEdge>();
+        var solidEdges = new List<ResourceGraphEdge>();
 
-        foreach (var parentId in topo)
+        foreach (var productId in topo)
         {
-            var parent = map[parentId];
+            var product = map[productId];
 
-            var needParentUnits = needUnits[parentId];
-            if (needParentUnits <= 0)
-                continue;
+            var needProductUnits = needUnits[productId];
+            if (needProductUnits <= 0) continue;
 
-            var parentOutput = Math.Max(1, parent.Count);
-            var parentCrafts = CeilDiv(needParentUnits, parentOutput);
+            var productOut = Math.Max(1, product.Count);
+            var productCrafts = CeilDiv(needProductUnits, productOut);
 
-            foreach (var input in parent.Inputs)
+            foreach (var ingId in calcChildren[productId])
             {
-                var childId = input.Id;
-                if (childId == Guid.Empty || !reachable.Contains(childId))
-                    continue;
+                var ing = map[ingId];
 
-                var child = map[childId];
-                var q = Math.Max(1, input.Count);
+                var q = GetInputCount(product, ingId);
+                var edgeNeed = productCrafts * q;
 
-                var edgeNeed = parentCrafts * q;
+                var ingOut = Math.Max(1, ing.Count);
+                var craftsForEdge = CeilDiv(edgeNeed, ingOut);
+                var edgeTime = craftsForEdge * Math.Max(0, ing.Seconds);
 
-                var childOut = Math.Max(1, child.Count);
-                var craftsForEdge = CeilDiv(edgeNeed, childOut);
-                var edgeTime = craftsForEdge * Math.Max(0, child.Seconds);
-
-                edges.Add(new ResourceGraphEdge
+                solidEdges.Add(new ResourceGraphEdge
                 {
-                    FromId = childId,
-                    ToId = parentId,
+                    FromId = ingId,
+                    ToId = productId,
                     NeedCount = edgeNeed,
-                    TimeSeconds = edgeTime
+                    TimeSeconds = edgeTime,
+                    IsDashed = false
                 });
             }
         }
 
         var level = reachable.ToDictionary(id => id, _ => 0);
-        foreach (var parentId in topo)
+        level[root.Id] = 0;
+
+        foreach (var productId in topo)
         {
-            var parentLevel = level[parentId];
-            var parent = map[parentId];
-
-            foreach (var input in parent.Inputs)
-            {
-                var childId = input.Id;
-                if (childId == Guid.Empty || !reachable.Contains(childId))
-                    continue;
-
-                level[childId] = Math.Max(level[childId], parentLevel + 1);
-            }
+            var l = level[productId];
+            foreach (var ingId in calcChildren[productId])
+                level[ingId] = Math.Max(level[ingId], l + 1);
         }
 
-        RelaxLevelsToReduceLongSharedEdges(reachable, edges, map, level);
+        var baseLevel = new Dictionary<Guid, int>(level);
 
-        var positions = ComputePositions(root.Id, reachable, edges, level, map);
+        var allEdges = dashedDisplayEdges.Select(p => new ResourceGraphEdge
+        {
+            FromId = p.From,
+            ToId = p.To,
+            NeedCount = 0,
+            TimeSeconds = 0,
+            IsDashed = true
+        }).Concat(solidEdges).ToList();
 
-        var outLabels = edges
+        RelaxLevelsToReduceLongSharedEdges(reachable, allEdges, level, baseLevel, slack: 2);
+
+        var positions = ComputePositions(root.Id, reachable, allEdges, level, map);
+
+        var outLabels = solidEdges
             .GroupBy(e => e.FromId)
             .Select(g =>
             {
-                var child = map[g.Key];
+                var ing = map[g.Key];
                 var totalNeed = g.Sum(x => x.NeedCount);
 
-                var childOut = Math.Max(1, child.Count);
-                var crafts = CeilDiv(totalNeed, childOut);
-                var totalTime = crafts * Math.Max(0, child.Seconds);
+                var ingOut = Math.Max(1, ing.Count);
+                var crafts = CeilDiv(totalNeed, ingOut);
+                var totalTime = crafts * Math.Max(0, ing.Seconds);
 
                 return new ResourceGraphOutLabel
                 {
@@ -245,8 +290,9 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
         var layout = new ResourceGraphLayout();
 
         foreach (var id in reachable
-                     .OrderBy(id => level[id])
-                     .ThenBy(id => map[id].Name, StringComparer.OrdinalIgnoreCase))
+            .OrderBy(id => level[id])
+            .ThenBy(id => map[id].Name, StringComparer.OrdinalIgnoreCase)
+        )
         {
             var r = map[id];
 
@@ -260,8 +306,37 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
             });
         }
 
-        foreach (var e in edges)
+        foreach (var e in solidEdges)
             layout.Edges.Add(e);
+
+        foreach (var (from, to) in dashedDisplayEdges)
+        {
+            var product = map[to];
+            var ingredient = map[from];
+
+            var needProductUnits = needUnits[to];
+            if (needProductUnits <= 0)
+                continue;
+
+            var productOut = Math.Max(1, product.Count);
+            var productCrafts = CeilDiv(needProductUnits, productOut);
+
+            var q = GetInputCount(product, from);
+            var edgeNeed = productCrafts * q;
+
+            var ingOut = Math.Max(1, ingredient.Count);
+            var craftsForEdge = CeilDiv(edgeNeed, ingOut);
+            var edgeTime = craftsForEdge * Math.Max(0, ingredient.Seconds);
+
+            layout.Edges.Add(new ResourceGraphEdge
+            {
+                FromId = from,
+                ToId = to,
+                NeedCount = edgeNeed,
+                TimeSeconds = edgeTime,
+                IsDashed = true
+            });
+        }
 
         foreach (var ol in outLabels)
             layout.OutLabels.Add(ol);
@@ -269,10 +344,173 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
         return new ResourceGraphBuildResult(false, null, layout);
     }
 
-    private static GraphCycleInfo? DetectCycle(
+    private static void CollectReachableAndCalcEdges(
         Guid rootId,
         Dictionary<Guid, ResourceViewModel> map,
-        HashSet<Guid> reachable
+        HashSet<Guid> reachable,
+        HashSet<(Guid Product, Guid Ingredient)> calcEdges
+    )
+    {
+        void Dfs(Guid id)
+        {
+            if (!reachable.Add(id)) return;
+            if (!map.TryGetValue(id, out var node)) return;
+
+            foreach (var inp in node.Inputs)
+            {
+                var childId = inp.Id;
+                if (childId == Guid.Empty) continue;
+                if (!map.ContainsKey(childId)) continue;
+
+                calcEdges.Add((Product: id, Ingredient: childId));
+                Dfs(childId);
+            }
+        }
+
+        Dfs(rootId);
+    }
+
+    private static List<Guid> GetCalcChildren(
+        Guid productId,
+        HashSet<Guid> reachable,
+        HashSet<(Guid Product, Guid Ingredient)> calcEdges
+    )
+    {
+        var res = new List<Guid>();
+        foreach (var (p, i) in calcEdges)
+            if (p == productId && reachable.Contains(i))
+                res.Add(i);
+
+        return [.. res.Distinct()];
+    }
+
+    private static int GetInputCount(ResourceViewModel product, Guid ingredientId)
+    {
+        var inp = product.Inputs.FirstOrDefault(x => x.Id == ingredientId);
+        return inp is null ? 1 : Math.Max(1, inp.Count);
+    }
+
+    private static bool IsSelfRenewablePair(Guid aId, Guid bId, Dictionary<Guid, ResourceViewModel> map)
+    {
+        if (!map.TryGetValue(aId, out var a)) return false;
+        if (!map.TryGetValue(bId, out var b)) return false;
+
+        if (b.Inputs.Count != 1) return false;
+
+        var bInp = b.Inputs[0];
+        if (bInp.Id != aId) return false;
+
+        int qBA = Math.Max(1, bInp.Count);
+
+        var aToB = a.Inputs.FirstOrDefault(x => x.Id == bId);
+        if (aToB is null) return false;
+
+        int qAB = Math.Max(1, aToB.Count);
+
+        int outA = Math.Max(1, a.Count);
+        int outB = Math.Max(1, b.Count);
+
+        int craftsA = outB / qAB;
+        if (craftsA <= 0) return false;
+
+        int producedA = craftsA * outA;
+
+        return producedA >= 2 * qBA;
+    }
+
+    private static Dictionary<Guid, HashSet<Guid>> BuildIncomingFromOutside(
+        HashSet<Guid> reachable,
+        HashSet<(Guid Product, Guid Ingredient)> calcEdges
+    )
+    {
+        var incoming = reachable.ToDictionary(id => id, _ => new HashSet<Guid>());
+
+        foreach (var (p, i) in calcEdges)
+        {
+            if (!reachable.Contains(p) || !reachable.Contains(i)) continue;
+            incoming[i].Add(p);
+        }
+
+        return incoming;
+    }
+
+    private static Guid PickNearNodeInTwoCycle(
+        Guid a,
+        Guid b,
+        Guid rootId,
+        Dictionary<Guid, HashSet<Guid>> incoming
+    )
+    {
+        if (a == rootId) return a;
+        if (b == rootId) return b;
+
+        bool aHasExternal = incoming[a].Any(x => x != a && x != b);
+        bool bHasExternal = incoming[b].Any(x => x != a && x != b);
+
+        if (aHasExternal && !bHasExternal) return a;
+        if (bHasExternal && !aHasExternal) return b;
+
+        return a.CompareTo(b) <= 0 ? a : b;
+    }
+
+    private static List<List<Guid>> TarjanScc(HashSet<Guid> nodes, Func<Guid, List<Guid>> next)
+    {
+        int index = 0;
+        var stack = new Stack<Guid>();
+        var onStack = new HashSet<Guid>();
+        var idx = new Dictionary<Guid, int>();
+        var low = new Dictionary<Guid, int>();
+        var result = new List<List<Guid>>();
+
+        void StrongConnect(Guid v)
+        {
+            idx[v] = index;
+            low[v] = index;
+            index++;
+
+            stack.Push(v);
+            onStack.Add(v);
+
+            foreach (var w in next(v))
+            {
+                if (!nodes.Contains(w)) continue;
+
+                if (!idx.ContainsKey(w))
+                {
+                    StrongConnect(w);
+                    low[v] = Math.Min(low[v], low[w]);
+                }
+                else if (onStack.Contains(w))
+                {
+                    low[v] = Math.Min(low[v], idx[w]);
+                }
+            }
+
+            if (low[v] == idx[v])
+            {
+                var comp = new List<Guid>();
+                while (true)
+                {
+                    var w = stack.Pop();
+                    onStack.Remove(w);
+                    comp.Add(w);
+                    if (w == v) break;
+                }
+                result.Add(comp);
+            }
+        }
+
+        foreach (var v in nodes)
+            if (!idx.ContainsKey(v))
+                StrongConnect(v);
+
+        return result;
+    }
+
+    private static GraphCycleInfo? DetectAnyCycle(
+        Guid rootId,
+        HashSet<Guid> reachable,
+        Dictionary<Guid, List<Guid>> calcChildren
     )
     {
         var visiting = new HashSet<Guid>();
@@ -281,36 +519,23 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
 
         GraphCycleInfo? Dfs(Guid id)
         {
-            if (visited.Contains(id))
-                return null;
+            if (!reachable.Contains(id)) return null;
+            if (visited.Contains(id)) return null;
 
             if (visiting.Contains(id))
             {
                 var idx = stack.IndexOf(id);
-                if (idx >= 0)
-                {
-                    var cyclePath = stack.Skip(idx).Concat([id]).ToList();
-                    return new GraphCycleInfo(cyclePath);
-                }
-                return new GraphCycleInfo([id, id]);
+                var path = idx >= 0 ? stack.Skip(idx).Concat([id]).ToList() : new List<Guid> { id, id };
+                return new GraphCycleInfo(path);
             }
 
             visiting.Add(id);
             stack.Add(id);
-            reachable.Add(id);
 
-            if (map.TryGetValue(id, out var node))
+            foreach (var ch in calcChildren[id])
             {
-                foreach (var input in node.Inputs)
-                {
-                    var childId = input.Id;
-                    if (childId == Guid.Empty) continue;
-                    if (!map.ContainsKey(childId)) continue;
-
-                    var cyc = Dfs(childId);
-                    if (cyc is not null)
-                        return cyc;
-                }
+                var cyc = Dfs(ch);
+                if (cyc is not null) return cyc;
             }
 
             stack.RemoveAt(stack.Count - 1);
@@ -322,37 +547,121 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
         return Dfs(rootId);
     }
 
-    private static List<Guid> TopoOrder(
+    private static List<Guid> TopoSortFromRootPrefer(
         Guid rootId,
-        Dictionary<Guid, ResourceViewModel> map,
-        HashSet<Guid> reachable
+        HashSet<Guid> reachable,
+        Dictionary<Guid, List<Guid>> calcChildren
     )
     {
-        var order = new List<Guid>();
-        var seen = new HashSet<Guid>();
+        var indeg = reachable.ToDictionary(id => id, _ => 0);
 
-        void Visit(Guid id)
+        foreach (var u in reachable)
+            foreach (var v in calcChildren[u])
+                indeg[v]++;
+
+        var zeros = indeg.Where(kv => kv.Value == 0).Select(kv => kv.Key).ToList();
+
+        zeros.Sort((x, y) =>
         {
-            if (!reachable.Contains(id)) return;
-            if (!seen.Add(id)) return;
+            if (x == rootId && y != rootId) return -1;
+            if (y == rootId && x != rootId) return 1;
+            return x.CompareTo(y);
+        });
 
-            order.Add(id);
+        var q = new Queue<Guid>(zeros);
+        var order = new List<Guid>(reachable.Count);
 
-            if (!map.TryGetValue(id, out var node)) return;
+        while (q.Count > 0)
+        {
+            var u = q.Dequeue();
+            order.Add(u);
 
-            foreach (var input in node.Inputs)
+            foreach (var v in calcChildren[u])
             {
-                var childId = input.Id;
-                if (childId == Guid.Empty) continue;
-                if (!reachable.Contains(childId)) continue;
-                Visit(childId);
+                indeg[v]--;
+                if (indeg[v] == 0)
+                    q.Enqueue(v);
             }
         }
 
-        Visit(rootId);
         return order;
     }
 
+    private static void RelaxLevelsToReduceLongSharedEdges(
+        HashSet<Guid> reachable,
+        List<ResourceGraphEdge> edges,
+        Dictionary<Guid, int> level,
+        Dictionary<Guid, int> baseLevel,
+        int slack = 2
+    )
+    {
+        var productsOfIngredient = reachable.ToDictionary(id => id, _ => new List<Guid>());
+        var ingredientsOfProduct = reachable.ToDictionary(id => id, _ => new List<Guid>());
+
+        foreach (var e in edges)
+        {
+            if (e.IsDashed) continue;
+            if (!reachable.Contains(e.FromId) || !reachable.Contains(e.ToId)) continue;
+
+            productsOfIngredient[e.FromId].Add(e.ToId);
+            ingredientsOfProduct[e.ToId].Add(e.FromId);
+        }
+
+        int Cap(Guid id, int v)
+        {
+            if (!baseLevel.TryGetValue(id, out var b)) b = 0;
+            var max = b + slack;
+            if (v > max) v = max;
+            if (v < 0) v = 0;
+            return v;
+        }
+
+        bool changed;
+        int guard = 0;
+
+        do
+        {
+            changed = false;
+            guard++;
+            if (guard > 2000) break;
+
+            foreach (var ing in reachable)
+            {
+                var ps = productsOfIngredient[ing];
+                if (ps.Count <= 1) continue;
+
+                var desiredProductLevel = Math.Max(0, level[ing] - 1);
+
+                foreach (var p in ps)
+                {
+                    var capped = Cap(p, desiredProductLevel);
+                    if (level[p] < capped)
+                    {
+                        level[p] = capped;
+                        changed = true;
+                    }
+                }
+            }
+
+            foreach (var prod in reachable)
+            {
+                foreach (var ing in ingredientsOfProduct[prod])
+                {
+                    var desiredIngLevel = level[prod] + 1;
+                    var capped = Cap(ing, desiredIngLevel);
+
+                    if (level[ing] < capped)
+                    {
+                        level[ing] = capped;
+                        changed = true;
+                    }
+                }
+            }
+        }
+        while (changed);
+    }
+
+    
     private Dictionary<Guid, Point> ComputePositions(
         Guid rootId,
         HashSet<Guid> reachable,
@@ -364,11 +673,38 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
         var parentsOf = reachable.ToDictionary(id => id, _ => new List<Guid>());
         var childrenOf = reachable.ToDictionary(id => id, _ => new List<Guid>());
 
+        var dashedPairs = edges
+            .Where(e => e.IsDashed)
+            .Select(e => (A: e.FromId, B: e.ToId))
+            .Where(p => reachable.Contains(p.A) && reachable.Contains(p.B))
+            .ToList();
+
+        var cycleMate = new Dictionary<Guid, Guid>();
+        foreach (var (a, b) in dashedPairs)
+        {
+            cycleMate[a] = b;
+            cycleMate[b] = a;
+        }
+
+        bool IsCycleMember(Guid id) => cycleMate.ContainsKey(id);
+
         foreach (var e in edges)
         {
+            if (e.IsDashed) continue;
             if (!reachable.Contains(e.FromId) || !reachable.Contains(e.ToId)) continue;
+
             parentsOf[e.FromId].Add(e.ToId);
             childrenOf[e.ToId].Add(e.FromId);
+        }
+
+        bool HasDashedBetween(Guid parent, Guid child)
+        {
+            return edges.Any(e =>
+                e.IsDashed &&
+                (
+                    (e.FromId == parent && e.ToId == child) ||
+                    (e.FromId == child && e.ToId == parent)
+                ));
         }
 
         var lengthMemo = new Dictionary<Guid, int>();
@@ -381,10 +717,30 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
                 return lengthMemo[id] = 0;
 
             int best = 0;
-            foreach (var k in kids)
+            foreach (var k in kids.Distinct())
                 best = Math.Max(best, 1 + LengthToLeaf(k));
 
             return lengthMemo[id] = best;
+        }
+
+        var spanMemo = new Dictionary<Guid, int>();
+
+        int Span(Guid id)
+        {
+            if (spanMemo.TryGetValue(id, out var v)) return v;
+
+            if (!childrenOf.TryGetValue(id, out var kids))
+                return spanMemo[id] = 1;
+
+            var uniqKids = kids.Distinct().ToList();
+            if (uniqKids.Count == 0)
+                return spanMemo[id] = 1;
+
+            int sum = 0;
+            foreach (var k in uniqKids)
+                sum += Math.Max(1, Span(k));
+
+            return spanMemo[id] = Math.Max(1, sum);
         }
 
         var lane = reachable.ToDictionary(id => id, _ => int.MinValue);
@@ -392,103 +748,92 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
 
         var rootKids = childrenOf[rootId]
             .Distinct()
-            .OrderBy(LengthToLeaf)
+            .OrderByDescending(id => HasDashedBetween(rootId, id))
+            .ThenByDescending(LengthToLeaf)
             .ThenBy(id => map[id].Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        for (int i = 0; i < rootKids.Count; i++)
-            lane[rootKids[i]] = i;
+        int curLane = 0;
+        foreach (var kid in rootKids)
+        {
+            lane[kid] = curLane;
+            curLane += Span(kid);
+        }
 
         var maxLevel = reachable.Max(id => level[id]);
         var idsByLevel = Enumerable.Range(0, maxLevel + 1)
             .Select(l => reachable.Where(id => level[id] == l).ToList())
             .ToList();
 
-        if (!idsByLevel[0].Contains(rootId)) idsByLevel[0].Add(rootId);
+        if (!idsByLevel[0].Contains(rootId))
+            idsByLevel[0].Add(rootId);
 
         var usedAtLevel = new Dictionary<int, HashSet<int>>();
         for (int l = 0; l <= maxLevel; l++)
             usedAtLevel[l] = [];
 
         foreach (var id in reachable)
-        {
             if (lane[id] != int.MinValue)
                 usedAtLevel[level[id]].Add(lane[id]);
-        }
-
-        static int PickNearestFree(HashSet<int> occupied, int preferred)
-        {
-            preferred = Math.Max(0, preferred);
-
-            if (!occupied.Contains(preferred))
-                return preferred;
-
-            for (int d = 1; d < 5000; d++)
-            {
-                var up = preferred - d;
-                if (up >= 0 && !occupied.Contains(up))
-                    return up;
-
-                var down = preferred + d;
-                if (!occupied.Contains(down))
-                    return down;
-            }
-
-            return preferred;
-        }
 
         for (int l = 1; l <= maxLevel; l++)
         {
-            var candidates = idsByLevel[l]
-                .Select(id =>
+            var occupied = usedAtLevel[l];
+
+            int ParentDelta(Guid id)
+            {
+                var ps = parentsOf[id];
+                if (ps.Count == 0) return 9999;
+                var nearestParentLevel = ps.Max(p => level[p]);
+                return level[id] - nearestParentLevel;
+            }
+
+            List<Guid> OrderedSiblings(Guid parentId)
+            {
+                return [.. childrenOf[parentId]
+                    .Distinct()
+                    .OrderByDescending(c => HasDashedBetween(parentId, c))
+                    .ThenByDescending(c => ParentDelta(c))
+                    .ThenByDescending(LengthToLeaf)
+                    .ThenBy(c => map[c].Name, StringComparer.OrdinalIgnoreCase)];
+            }
+
+            int PreferredLane(Guid id)
+            {
+                if (cycleMate.TryGetValue(id, out var mate) && lane[mate] != int.MinValue)
+                    return lane[mate];
+
+                if (lane[id] != int.MinValue) return lane[id];
+
+                var ps = parentsOf[id];
+                if (ps.Count == 0) return 0;
+
+                var parentLanes = ps.Where(p => lane[p] != int.MinValue).Select(p => lane[p]).ToList();
+                if (parentLanes.Count == 0) return 0;
+
+                if (ps.Count == 1)
                 {
-                    if (lane[id] != int.MinValue)
-                        return (Id: id, Preferred: lane[id]);
+                    var p = ps[0];
+                    var pLane = parentLanes[0];
 
-                    var ps = parentsOf[id];
-                    if (ps.Count == 0)
-                        return (Id: id, Preferred: 0);
+                    var siblings = OrderedSiblings(p);
+                    var idx = Math.Max(0, siblings.IndexOf(id));
+                    return pLane + idx;
+                }
 
-                    var parentLanes = ps
-                        .Where(p => lane[p] != int.MinValue)
-                        .Select(p => lane[p])
-                        .ToList();
+                return parentLanes.Max();
+            }
 
-                    if (parentLanes.Count == 0)
-                        return (Id: id, Preferred: 0);
-
-                    int preferred;
-
-                    if (ps.Count == 1)
-                    {
-                        var parentId = ps[0];
-                        var parentLane = parentLanes[0];
-
-                        var siblings = childrenOf[parentId]
-                            .Where(c => level[c] == level[parentId] + 1)
-                            .Distinct()
-                            .OrderByDescending(LengthToLeaf)
-                            .ThenBy(x => map[x].Name, StringComparer.OrdinalIgnoreCase)
-                            .ToList();
-
-                        var siblingIndex = Math.Max(0, siblings.IndexOf(id));
-                        preferred = parentLane + siblingIndex;
-                    }
-                    else
-                    {
-                        preferred = parentLanes.Min();
-                    }
-
-                    return (Id: id, Preferred: preferred);
-                })
-                .OrderBy(x => x.Preferred)
+            var candidates = idsByLevel[l]
+                .Select(id => (Id: id, Pref: PreferredLane(id)))
+                .OrderByDescending(x => x.Id == rootId)
+                .ThenByDescending(x => IsCycleMember(x.Id))
+                .ThenByDescending(x => ParentDelta(x.Id))
                 .ThenByDescending(x => LengthToLeaf(x.Id))
                 .ThenBy(x => map[x.Id].Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            var occupied = usedAtLevel[l];
-
-            foreach (var (id, preferred) in candidates)
+            foreach (var (id, pref) in candidates)
             {
                 if (lane[id] != int.MinValue)
                 {
@@ -496,7 +841,10 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
                     continue;
                 }
 
-                var chosen = PickNearestFree(occupied, preferred);
+                int chosen = Math.Max(0, pref);
+                while (occupied.Contains(chosen))
+                    chosen++;
+
                 lane[id] = chosen;
                 occupied.Add(chosen);
             }
@@ -520,66 +868,5 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
         }
 
         return pos;
-    }
-
-    private static void RelaxLevelsToReduceLongSharedEdges(
-        HashSet<Guid> reachable,
-        List<ResourceGraphEdge> edges,
-        Dictionary<Guid, ResourceViewModel> map,
-        Dictionary<Guid, int> level
-    )
-    {
-        var parentsOf = reachable.ToDictionary(id => id, _ => new List<Guid>());
-        foreach (var e in edges)
-        {
-            if (!reachable.Contains(e.FromId) || !reachable.Contains(e.ToId)) continue;
-            parentsOf[e.FromId].Add(e.ToId);
-        }
-
-        bool changed;
-        int guard = 0;
-
-        do
-        {
-            changed = false;
-            guard++;
-            if (guard > 2000) break;
-
-            foreach (var child in reachable)
-            {
-                var ps = parentsOf[child];
-                if (ps.Count <= 1) continue;
-
-                var desiredParentLevel = Math.Max(0, level[child] - 1);
-
-                foreach (var p in ps)
-                {
-                    if (level[p] < desiredParentLevel)
-                    {
-                        level[p] = desiredParentLevel;
-                        changed = true;
-                    }
-                }
-            }
-
-            foreach (var parent in reachable)
-            {
-                if (!map.TryGetValue(parent, out var pr)) continue;
-
-                foreach (var inp in pr.Inputs)
-                {
-                    var child = inp.Id;
-                    if (child == Guid.Empty || !reachable.Contains(child)) continue;
-
-                    var desiredChildLevel = level[parent] + 1;
-                    if (level[child] < desiredChildLevel)
-                    {
-                        level[child] = desiredChildLevel;
-                        changed = true;
-                    }
-                }
-            }
-        }
-        while (changed);
     }
 }

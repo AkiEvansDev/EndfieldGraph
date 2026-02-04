@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using EndfieldGraph.Models;
 using EndfieldGraph.Services;
 using EndfieldGraph.Services.Data;
 using EndfieldGraph.Services.Data.Resources;
@@ -11,6 +12,7 @@ using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Text.Json;
 using System.Windows.Data;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
@@ -143,7 +145,10 @@ public partial class ResourcesViewModel : BaseViewModel
     }
 
     private void OnResourcePropertyChanged(object? sender, PropertyChangedEventArgs e)
-        => RequestSave();
+    {
+        RecalcGraphWarning();
+        RequestSave();
+    }
 
     #endregion
     #region Commands
@@ -207,6 +212,7 @@ public partial class ResourcesViewModel : BaseViewModel
         if (input is null) return;
 
         Selected = Resources.FirstOrDefault(r => r.Id == input.Id);
+        SearchText = Selected?.Name ?? "";
     }
 
     [RelayCommand(CanExecute = nameof(IsSelected))]

@@ -1,6 +1,6 @@
 ﻿using System.Collections.ObjectModel;
+using System.Text.Json.Serialization;
 using System.Windows;
-using System.Windows.Media.Imaging;
 
 namespace EndfieldGraph.Models;
 
@@ -8,6 +8,7 @@ public sealed class ResourceGraphNode
 {
     public Guid Id { get; init; }
     public string Name { get; init; } = "";
+    [JsonIgnore]
     public byte[]? Icon { get; init; }
 
     public Point Position { get; init; }
@@ -21,6 +22,8 @@ public sealed class ResourceGraphEdge
 
     public int NeedCount { get; init; }
     public int TimeSeconds { get; init; }
+
+    public bool IsDashed { get; init; } = false;
 }
 
 public sealed class ResourceGraphOutLabel

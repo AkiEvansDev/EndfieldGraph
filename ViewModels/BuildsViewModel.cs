@@ -345,6 +345,16 @@ public partial class BuildsViewModel : BaseViewModel
             .Select(g => new BuildGoalSpec(g.Id, g.Count))
             .ToList();
 
-        Calculation = calc.Calculate(goals, AllResources);
+        try
+        {
+            Calculation = calc.Calculate(goals, AllResources);
+        }
+        catch (Exception ex)
+        {
+            snackbar.Show("Error", ex.Message, ControlAppearance.Danger,
+                new SymbolIcon(SymbolRegular.ErrorCircle24),
+                TimeSpan.FromSeconds(6)
+            );
+        }
     }
 }

@@ -1,20 +1,21 @@
-﻿using EndfieldGraph.ViewModels.Resource;
+﻿using EndfieldGraph.Models;
+using EndfieldGraph.ViewModels.Resource;
 
 namespace EndfieldGraph.Services;
 
-public interface IBuildsCalculationService
+public interface IBuildCalculationService
 {
     BuildCalcResult Calculate(
         IReadOnlyCollection<BuildGoalSpec> goals,
-        IReadOnlyCollection<ResourceItemViewModel> allResources
+        IReadOnlyCollection<ResourceViewModel> allResources
     );
 }
 
-public sealed class BuildsCalculationService : IBuildsCalculationService
+public sealed class BuildCalculationService : IBuildCalculationService
 {
     public BuildCalcResult Calculate(
         IReadOnlyCollection<BuildGoalSpec> goals,
-        IReadOnlyCollection<ResourceItemViewModel> allResources
+        IReadOnlyCollection<ResourceViewModel> allResources
     )
     {
         var map = allResources
@@ -23,9 +24,9 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
             .ToDictionary(g => g.Key, g => g.First());
 
         var normalizedGoals = goals
-            .Where(g => g.ResourceId != Guid.Empty && g.QtyPerMin > 0)
-            .GroupBy(g => g.ResourceId)
-            .Select(g => new BuildGoalSpec(g.Key, g.Sum(x => x.QtyPerMin)))
+            .Where(g => g.Id != Guid.Empty && g.CountPerMin > 0)
+            .GroupBy(g => g.Id)
+            .Select(g => new BuildGoalSpec(g.Key, g.Sum(x => x.CountPerMin)))
             .ToList();
 
         if (normalizedGoals.Count == 0)
@@ -39,13 +40,13 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
         }
 
         var reachable = new HashSet<Guid>();
-        var topoParentFirst = BuildTopoParentFirst(normalizedGoals.Select(g => g.ResourceId), map, reachable);
+        var topoParentFirst = BuildTopoParentFirst(normalizedGoals.Select(g => g.Id), map, reachable);
 
         var goalNeed = reachable.ToDictionary(id => id, _ => 0.0);
         foreach (var g in normalizedGoals)
         {
-            if (reachable.Contains(g.ResourceId))
-                goalNeed[g.ResourceId] += g.QtyPerMin;
+            if (reachable.Contains(g.Id))
+                goalNeed[g.Id] += g.CountPerMin;
         }
 
         var consumedByParents = reachable.ToDictionary(id => id, _ => 0.0);
@@ -62,7 +63,7 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
             if (parent.Inputs.Count == 0)
                 continue;
 
-            var outQty = Math.Max(1, parent.OutputQty);
+            var outQty = Math.Max(1, parent.Count);
             var craftsPerMin = totalNeedParent / outQty;
 
             foreach (var inp in parent.Inputs)
@@ -71,7 +72,7 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
                 if (childId == Guid.Empty) continue;
                 if (!reachable.Contains(childId)) continue;
 
-                var q = Math.Max(1, inp.Qty);
+                var q = Math.Max(1, inp.Count);
                 consumedByParents[childId] += craftsPerMin * q;
             }
         }
@@ -86,7 +87,7 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
                 return new BuildLeafNeed(
                     id,
                     r.Name,
-                    r.IconPngBytes,
+                    r.Icon,
                     NeedPerMin: totalNeed[id]
                 );
             })
@@ -94,7 +95,7 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
             .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var goalSet = new HashSet<Guid>(normalizedGoals.Select(g => g.ResourceId));
+        var goalSet = new HashSet<Guid>(normalizedGoals.Select(g => g.Id));
 
         var rows = reachable
             .Where(id => map.TryGetValue(id, out _))
@@ -108,8 +109,8 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
                 if (!isGoal && !isCraftable)
                     return null;
 
-                var outQty = Math.Max(1, r.OutputQty);
-                var craftTime = Math.Max(0, r.CraftTimeSec);
+                var outQty = Math.Max(1, r.Count);
+                var craftTime = Math.Max(0, r.Seconds);
 
                 var consumed = consumedByParents[id];
                 var producedNeed = totalNeed[id];
@@ -119,7 +120,7 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
                     return new BuildCalcRow(
                         r.Id,
                         r.Name,
-                        r.IconPngBytes,
+                        r.Icon,
                         IsGoal: isGoal,
                         IsLeaf: true,
                         ConsumedPerMin: consumed,
@@ -127,8 +128,8 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
                         DeltaPerMin: producedNeed - consumed,
                         CraftsPerMin: 0,
                         Machines: 0,
-                        OutputQty: outQty,
-                        CraftTimeSec: craftTime
+                        Count: outQty,
+                        Seconds: craftTime
                     );
                 }
 
@@ -145,7 +146,7 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
                 return new BuildCalcRow(
                     r.Id,
                     r.Name,
-                    r.IconPngBytes,
+                    r.Icon,
                     IsGoal: isGoal,
                     IsLeaf: false,
                     ConsumedPerMin: consumed,
@@ -153,8 +154,8 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
                     DeltaPerMin: producedPerMin - consumed,
                     CraftsPerMin: craftsPerMin,
                     Machines: machines,
-                    OutputQty: outQty,
-                    CraftTimeSec: craftTime
+                    Count: outQty,
+                    Seconds: craftTime
                 );
             })
             .Where(x => x is not null)
@@ -189,7 +190,7 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
 
     private static List<Guid> BuildTopoParentFirst(
         IEnumerable<Guid> roots,
-        Dictionary<Guid, ResourceItemViewModel> map,
+        Dictionary<Guid, ResourceViewModel> map,
         HashSet<Guid> reachableOut
     )
     {
@@ -200,7 +201,7 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
         void Dfs(Guid id)
         {
             if (id == Guid.Empty) return;
-            if (!map.TryGetValue(id, out ResourceItemViewModel? node)) return;
+            if (!map.TryGetValue(id, out ResourceViewModel? node)) return;
 
             reachableOut.Add(id);
 
@@ -233,7 +234,7 @@ public sealed class BuildsCalculationService : IBuildsCalculationService
 
     private static (int IntermediateCount, int MaxDepth) CalcComplexity(
         Guid id,
-        Dictionary<Guid, ResourceItemViewModel> map,
+        Dictionary<Guid, ResourceViewModel> map,
         Dictionary<Guid, HashSet<Guid>> memoIntermediate,
         Dictionary<Guid, int> memoDepth
     )

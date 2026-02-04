@@ -1,4 +1,5 @@
-﻿using System.Windows;
+﻿using EndfieldGraph.ViewModels;
+using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Wpf.Ui;
@@ -10,9 +11,9 @@ namespace EndfieldGraph.Views;
 
 public partial class MainWindow : INavigationWindow
 {
-    public ViewModels.MainWindowViewModel ViewModel { get; }
+    public MainWindowViewModel ViewModel { get; }
 
-    public MainWindow(ViewModels.MainWindowViewModel viewModel, INavigationService navigationService, IContentDialogService dialogService, ISnackbarService snackbarService)
+    public MainWindow(MainWindowViewModel viewModel, INavigationService navigationService, IContentDialogService dialogService, ISnackbarService snackbarService)
     {
         ViewModel = viewModel;
         DataContext = this;

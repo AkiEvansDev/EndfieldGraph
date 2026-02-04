@@ -5,10 +5,16 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:conv="clr-namespace:EndfieldGraph.Views.Converters"
     xmlns:local="clr-namespace:EndfieldGraph.Views.Controls"
     mc:Ignorable="d" 
     d:DesignHeight="450" d:DesignWidth="800"
     x:Name="Root">
+
+    <UserControl.Resources>
+        <conv:ByteArrayToBitmapImageConverter x:Key="BytesToImg"/>
+    </UserControl.Resources>
+
     <Grid>
         <ui:Button 
             x:Name="ButtonRoot"
@@ -28,7 +34,7 @@
                     Grid.Column="0"
                     Width="28" Height="28"
                     CornerRadius="4"
-                    Source="{Binding ElementName=Root, Path=SelectedIcon}"
+                    Source="{Binding ElementName=Root, Path=SelectedIcon, Converter={StaticResource BytesToImg}}"
                     Stretch="Uniform"/>
 
                 <ui:TextBlock
@@ -83,7 +89,8 @@
                                         Width="28" Height="28"
                                         CornerRadius="4"
                                         Margin="0 0 6 0"
-                                        Source="{Binding Icon}" Stretch="Uniform"/>
+                                        Stretch="Uniform"
+                                        Source="{Binding Icon, Converter={StaticResource BytesToImg}}"/>
                                     <ui:TextBlock 
                                         VerticalAlignment="Center"
                                         Text="{Binding Name}"/>

@@ -1,15 +1,16 @@
-﻿using System.Windows;
+﻿using EndfieldGraph.ViewModels;
+using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace EndfieldGraph.Views.Pages;
 
-public partial class ResourcesPage : INavigableView<ViewModels.ResourcesViewModel>
+public partial class ResourcesPage : INavigableView<ResourcesViewModel>
 {
-    public ViewModels.ResourcesViewModel ViewModel { get; }
+    public ResourcesViewModel ViewModel { get; }
 
-    public ResourcesPage(ViewModels.ResourcesViewModel viewModel)
+    public ResourcesPage(ResourcesViewModel viewModel)
     {
         ViewModel = viewModel;
         DataContext = this;

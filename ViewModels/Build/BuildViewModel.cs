@@ -1,11 +1,11 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using EndfieldGraph.ViewModels.Resource;
+using EndfieldGraph.ViewModels.Common;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 
-namespace EndfieldGraph.ViewModels;
+namespace EndfieldGraph.ViewModels.Build;
 
-public partial class BuildTabViewModel : ObservableObject
+public partial class BuildViewModel : ObservableObject
 {
     public event Action? GoalsChanged;
 
@@ -15,9 +15,9 @@ public partial class BuildTabViewModel : ObservableObject
     [ObservableProperty] private bool isRenaming;
     [ObservableProperty] private string renameText = "";
 
-    public ObservableCollection<ResourceInputViewModel> Goals { get; } = [];
+    public ObservableCollection<InputViewModel> Goals { get; } = [];
 
-    public BuildTabViewModel(Guid id, string name)
+    public BuildViewModel(Guid id, string name)
     {
         Id = id;
         this.name = name;
@@ -25,11 +25,11 @@ public partial class BuildTabViewModel : ObservableObject
         Goals.CollectionChanged += (_, e) =>
         {
             if (e.NewItems is not null)
-                foreach (var it in e.NewItems.OfType<ResourceInputViewModel>())
+                foreach (var it in e.NewItems.OfType<InputViewModel>())
                     it.PropertyChanged += OnGoalPropertyChanged;
 
             if (e.OldItems is not null)
-                foreach (var it in e.OldItems.OfType<ResourceInputViewModel>())
+                foreach (var it in e.OldItems.OfType<InputViewModel>())
                     it.PropertyChanged -= OnGoalPropertyChanged;
 
             GoalsChanged?.Invoke();
@@ -39,7 +39,8 @@ public partial class BuildTabViewModel : ObservableObject
             g.PropertyChanged += OnGoalPropertyChanged;
     }
 
-    private void OnGoalPropertyChanged(object? sender, PropertyChangedEventArgs e) => GoalsChanged?.Invoke();
+    private void OnGoalPropertyChanged(object? sender, PropertyChangedEventArgs e) 
+        => GoalsChanged?.Invoke();
 
     public void BeginRename()
     {

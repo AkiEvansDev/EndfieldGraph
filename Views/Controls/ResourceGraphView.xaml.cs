@@ -1,4 +1,6 @@
-﻿using System.Collections.Specialized;
+﻿using EndfieldGraph.Models;
+using EndfieldGraph.Services.Helpers;
+using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -142,7 +144,7 @@ public partial class ResourceGraphView : UserControl
 
         if (node.Icon is not null)
         {
-            ellipse.Fill = new ImageBrush(node.Icon)
+            ellipse.Fill = new ImageBrush(IconPngConverter.ToBitmapImage(node.Icon))
             {
                 Stretch = Stretch.UniformToFill,
                 AlignmentX = AlignmentX.Center,
@@ -207,7 +209,7 @@ public partial class ResourceGraphView : UserControl
 
         var width = 0.0;
         var height = 0.0;
-        foreach (var edge in incoming.OrderByDescending(e => e.NeedQty))
+        foreach (var edge in incoming.OrderByDescending(e => e.NeedCount))
         {
             var child = Layout.Nodes.FirstOrDefault(n => n.Id == edge.FromId);
 
@@ -227,7 +229,7 @@ public partial class ResourceGraphView : UserControl
             {
                 chipContent.Children.Add(new Image
                 {
-                    Source = child.Icon,
+                    Source = IconPngConverter.ToBitmapImage(child.Icon),
                     Width = 16,
                     Height = 16,
                     Stretch = Stretch.UniformToFill,
@@ -237,7 +239,7 @@ public partial class ResourceGraphView : UserControl
 
             chipContent.Children.Add(new TextBlock
             {
-                Text = $"×{edge.NeedQty}",
+                Text = $"×{edge.NeedCount}",
                 Foreground = (Brush)FindResource("TextFillColorPrimaryBrush"),
                 VerticalAlignment = VerticalAlignment.Center,
             });
@@ -321,8 +323,8 @@ public partial class ResourceGraphView : UserControl
 
             var isLeaf = !Layout.Edges.Any(e => e.ToId == ol.FromId);
             var labelText = isLeaf
-                ? $"×{ol.NeedQty}"
-                : $"×{ol.NeedQty}  ⏱{ol.TimeSec}s";
+                ? $"×{ol.NeedCount}"
+                : $"×{ol.NeedCount}  ⏱{ol.TimeSeconds}s";
 
             var label = new Border
             {

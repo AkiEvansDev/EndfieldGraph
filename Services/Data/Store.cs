@@ -3,38 +3,35 @@ using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 
-namespace EndfieldGraph.Services;
+namespace EndfieldGraph.Services.Data;
 
-public interface IResourcesStore
+public interface IStore<T>
 {
-    ReadOnlyObservableCollection<ResourceRecord> Resources { get; }
+    ReadOnlyObservableCollection<T> Items { get; }
 
     Task InitializeAsync(CancellationToken ct = default);
 
     Task ImportAsync(string archivePath, ImportMode mode, CancellationToken ct = default);
     Task ExportAsync(string archivePath, CancellationToken ct = default);
 
-    void ApplySnapshot(IReadOnlyList<ResourceRecord> snapshot);
+    void ApplySnapshot(IReadOnlyList<T> snapshot);
     Task FlushAsync(CancellationToken ct = default);
 
     IDisposable BeginBatchUpdate();
 }
 
-public class ResourcesStore : IResourcesStore
+public class Store<T> : IStore<T>
 {
+    private readonly IArchiveService<T> archive;
+    private readonly Func<T, Guid> getId;
+    private readonly Func<T, T> normalize;
 
-    private readonly IResourcesArchiveService archive;
-
-    protected virtual string LocalPath { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "EndfieldGraph",
-        "resources.egres"
-    );
+    protected virtual string LocalPath { get; }
     protected virtual bool ShouldSeedOnEmpty { get; } = true;
-    protected virtual string? DefaultSeedPackUri { get; } = "pack://application:,,,/Assets/default_resources.egres";
+    protected virtual string? DefaultSeedPackUri { get; } = null;
 
-    private readonly ObservableCollection<ResourceRecord> resources = [];
-    public ReadOnlyObservableCollection<ResourceRecord> Resources { get; }
+    private readonly ObservableCollection<T> items = [];
+    public ReadOnlyObservableCollection<T> Items { get; }
 
     private readonly DispatcherTimer debounceTimer;
     private readonly SemaphoreSlim ioGate = new(1, 1);
@@ -43,11 +40,19 @@ public class ResourcesStore : IResourcesStore
     private bool dirty;
     private int batchDepth;
 
-    public ResourcesStore(IResourcesArchiveService archive)
+    public Store(
+        IArchiveService<T> archive,
+        Func<T, Guid> getId,
+        Func<T, T> normalize,
+        string localPath
+    )
     {
         this.archive = archive;
+        this.getId = getId;
+        this.normalize = normalize;
+        LocalPath = localPath;
 
-        Resources = new ReadOnlyObservableCollection<ResourceRecord>(resources);
+        Items = new ReadOnlyObservableCollection<T>(items);
 
         debounceTimer = new DispatcherTimer
         {
@@ -73,9 +78,7 @@ public class ResourcesStore : IResourcesStore
         try
         {
             if (!File.Exists(LocalPath) && ShouldSeedOnEmpty)
-            {
                 TrySeed();
-            }
 
             var imported = File.Exists(LocalPath)
                 ? await archive.ImportAsync(LocalPath, ImportMode.ReplaceAll, existing: [], ct)
@@ -89,9 +92,9 @@ public class ResourcesStore : IResourcesStore
 
             using (BeginBatchUpdate())
             {
-                resources.Clear();
-                foreach (var r in imported)
-                    resources.Add(r);
+                items.Clear();
+                foreach (var x in imported.Select(normalize))
+                    items.Add(x);
             }
 
             dirty = false;
@@ -120,9 +123,7 @@ public class ResourcesStore : IResourcesStore
 
         using var s = info.Stream;
         using var ms = new MemoryStream();
-
         s.CopyTo(ms);
-
         return ms.ToArray();
     }
 
@@ -131,13 +132,13 @@ public class ResourcesStore : IResourcesStore
         await ioGate.WaitAsync(ct);
         try
         {
-            var imported = await archive.ImportAsync(archivePath, mode, existing: [.. Resources], ct);
+            var imported = await archive.ImportAsync(archivePath, mode, existing: [.. Items], ct);
 
             using (BeginBatchUpdate())
             {
-                resources.Clear();
-                foreach (var r in imported)
-                    resources.Add(r);
+                items.Clear();
+                foreach (var x in imported.Select(normalize))
+                    items.Add(x);
             }
 
             MarkDirty();
@@ -155,7 +156,7 @@ public class ResourcesStore : IResourcesStore
         await ioGate.WaitAsync(ct);
         try
         {
-            await archive.ExportAsync(archivePath, [.. Resources], ct);
+            await archive.ExportAsync(archivePath, [.. Items], ct);
         }
         finally
         {
@@ -163,53 +164,48 @@ public class ResourcesStore : IResourcesStore
         }
     }
 
-    public void ApplySnapshot(IReadOnlyList<ResourceRecord> snapshot)
+    public void ApplySnapshot(IReadOnlyList<T> snapshot)
     {
-        var before = resources.ToList();
+        var before = items.ToList();
 
         var normalized = snapshot
-            .Where(r => r.Id != Guid.Empty)
-            .Select(r => r with
-            {
-                Name = (r.Name ?? "").Trim(),
-                OutputQty = r.OutputQty <= 0 ? 1 : r.OutputQty,
-                Inputs = [.. r.Inputs.Where(i => i.Id != Guid.Empty && i.Qty > 0)]
-            })
+            .Select(normalize)
+            .Where(x => getId(x) != Guid.Empty)
             .ToList();
 
         using (BeginBatchUpdate())
         {
-            var incomingIds = new HashSet<Guid>(normalized.Select(r => r.Id));
+            var incomingIds = new HashSet<Guid>(normalized.Select(getId));
 
-            for (int i = resources.Count - 1; i >= 0; i--)
+            for (int i = items.Count - 1; i >= 0; i--)
             {
-                var id = resources[i].Id;
+                var id = getId(items[i]);
                 if (!incomingIds.Contains(id))
-                    resources.RemoveAt(i);
+                    items.RemoveAt(i);
             }
 
-            var byId = resources
-                .Select((r, idx) => (r.Id, idx))
+            var byId = items
+                .Select((x, idx) => (Id: getId(x), idx))
                 .ToDictionary(x => x.Id, x => x.idx);
 
-            for (int i = 0; i < normalized.Count; i++)
+            foreach (var x in normalized)
             {
-                var item = normalized[i];
+                var id = getId(x);
 
-                if (byId.TryGetValue(item.Id, out var existingIndex))
+                if (byId.TryGetValue(id, out var idx))
                 {
-                    if (!resources[existingIndex].Equals(item))
-                        resources[existingIndex] = item;
+                    if (!Equals(items[idx], x))
+                        items[idx] = x;
                 }
                 else
                 {
-                    resources.Add(item);
-                    byId[item.Id] = resources.Count - 1;
+                    items.Add(x);
+                    byId[id] = items.Count - 1;
                 }
             }
         }
 
-        if (before.Count != resources.Count || !before.SequenceEqual(resources))
+        if (before.Count != items.Count || !before.SequenceEqual(items))
             MarkDirty();
     }
 
@@ -220,7 +216,7 @@ public class ResourcesStore : IResourcesStore
         await ioGate.WaitAsync(ct);
         try
         {
-            await archive.ExportAsync(LocalPath, [.. resources], ct);
+            await archive.ExportAsync(LocalPath, [.. items], ct);
             dirty = false;
         }
         finally
@@ -235,7 +231,7 @@ public class ResourcesStore : IResourcesStore
         return new BatchScope(this);
     }
 
-    private sealed class BatchScope(ResourcesStore store) : IDisposable
+    private sealed class BatchScope(Store<T> store) : IDisposable
     {
         public void Dispose()
         {

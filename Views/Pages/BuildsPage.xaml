@@ -155,7 +155,7 @@
                                                             CornerRadius="3"
                                                             Margin="0 0 6 0"
                                                             Stretch="Uniform"
-                                                            Source="{Binding IconPngBytes, Converter={StaticResource BytesToImg}}"/>
+                                                            Source="{Binding Icon, Converter={StaticResource BytesToImg}}"/>
                                                         <ui:TextBlock
                                                             VerticalAlignment="Center"
                                                             Text="{Binding Name}"
@@ -203,7 +203,7 @@
                                                                 CornerRadius="12"
                                                                 Margin="-6 -16"
                                                                 Stretch="Uniform"
-                                                                Source="{Binding IconPngBytes, Converter={StaticResource BytesToImg}}"/>
+                                                                Source="{Binding Icon, Converter={StaticResource BytesToImg}}"/>
 
                                                             <StackPanel
                                                                 Grid.Column="2" 
@@ -348,7 +348,7 @@
                                                             Minimum="1"
                                                             Maximum="99"
                                                             Height="35"
-                                                            Value="{Binding Qty, UpdateSourceTrigger=PropertyChanged}"
+                                                            Value="{Binding Count, UpdateSourceTrigger=PropertyChanged}"
                                                             KeyDown="OnTextBoxKeyDown">
                                                             <ui:NumberBox.Icon>
                                                                 <ui:SymbolIcon Symbol="NumberSymbolSquare24"/>

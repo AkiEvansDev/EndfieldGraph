@@ -1,4 +1,11 @@
 ﻿using EndfieldGraph.Services;
+using EndfieldGraph.Services.Data;
+using EndfieldGraph.Services.Data.Builds;
+using EndfieldGraph.Services.Data.Resources;
+using EndfieldGraph.ViewModels;
+using EndfieldGraph.Views;
+using EndfieldGraph.Views.Pages;
+using EndfieldGraph.Views.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -27,27 +34,33 @@ public partial class App
             (context, services) =>
             {
                 _ = services.AddNavigationViewPageProvider();
+
                 _ = services.AddHostedService<ApplicationHostService>();
                 _ = services.AddSingleton<INavigationService, NavigationService>();
                 _ = services.AddSingleton<IContentDialogService, ContentDialogService>();
                 _ = services.AddSingleton<ISnackbarService, SnackbarService>();
 
-                _ = services.AddSingleton<INavigationWindow, Views.MainWindow>();
-                _ = services.AddSingleton<ViewModels.MainWindowViewModel>();
+                _ = services.AddSingleton<IArchiveCodec<ResourceRecord>, ResourcesArchiveCodec>();
+                
+                _ = services.AddSingleton<IArchiveService<ResourceRecord>>(sp =>
+                    new ZipArchiveService<ResourceRecord>(sp.GetRequiredService<IArchiveCodec<ResourceRecord>>())
+                );
 
-                _ = services.AddSingleton<Views.Pages.BuildsPage>();
-                _ = services.AddSingleton<ViewModels.BuildsViewModel>();
-                _ = services.AddSingleton<Views.Pages.ResourcesPage>();
-                _ = services.AddSingleton<ViewModels.ResourcesViewModel>();
-
-                _ = services.AddSingleton<IResourcesArchiveService, ResourcesArchiveService>();
                 _ = services.AddSingleton<IResourcesStore, ResourcesStore>();
-                _ = services.AddSingleton<ITabsStore, TabsStore>();
-                _ = services.AddSingleton<IBuildsArchiveService, BuildsArchiveService>();
-                _ = services.AddSingleton<IResourceGraphBuilder, ResourceGraphBuilder>();
-                _ = services.AddSingleton<IBuildsCalculationService, BuildsCalculationService>();
+                _ = services.AddSingleton<IBuildsStore, BuildsStore>();
 
-                _ = services.AddTransient<Views.Windows.GraphWindow>();
+                _ = services.AddSingleton<IResourceGraphBuilder, ResourceGraphBuilder>();
+                _ = services.AddSingleton<IBuildCalculationService, BuildCalculationService>();
+
+                _ = services.AddSingleton<INavigationWindow, MainWindow>();
+                _ = services.AddSingleton<MainWindowViewModel>();
+
+                _ = services.AddSingleton<BuildsPage>();
+                _ = services.AddSingleton<BuildsViewModel>();
+                _ = services.AddSingleton<ResourcesPage>();
+                _ = services.AddSingleton<ResourcesViewModel>();
+
+                _ = services.AddTransient<GraphWindow>();
 
                 _ = services.AddSingleton<IUpdateService, GitHubUpdateService>();
             }

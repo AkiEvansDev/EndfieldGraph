@@ -1,5 +1,6 @@
-﻿using EndfieldGraph.ViewModels.Resource;
-using EndfieldGraph.Views.Controls;
+﻿using EndfieldGraph.Models;
+using EndfieldGraph.Services.Helpers;
+using EndfieldGraph.ViewModels.Resource;
 using System.Windows;
 
 namespace EndfieldGraph.Services;
@@ -17,8 +18,8 @@ public interface IResourceGraphBuilder
     ResourceGraphLayout ComposeVertical(IReadOnlyList<ResourceGraphLayout> parts, double gapY);
 
     ResourceGraphBuildResult BuildFor(
-        ResourceItemViewModel root,
-        IReadOnlyCollection<ResourceItemViewModel> allResources,
+        ResourceViewModel root,
+        IReadOnlyCollection<ResourceViewModel> allResources,
         int desiredRootUnits = 1
     );
 }
@@ -85,8 +86,8 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
                 {
                     FromId = nf,
                     ToId = nt,
-                    NeedQty = e.NeedQty,
-                    TimeSec = e.TimeSec
+                    NeedCount = e.NeedCount,
+                    TimeSeconds = e.TimeSeconds
                 });
             }
 
@@ -97,8 +98,8 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
                 result.OutLabels.Add(new ResourceGraphOutLabel
                 {
                     FromId = nf,
-                    NeedQty = ol.NeedQty,
-                    TimeSec = ol.TimeSec
+                    NeedCount = ol.NeedCount,
+                    TimeSeconds = ol.TimeSeconds
                 });
             }
 
@@ -109,8 +110,8 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
     }
 
     public ResourceGraphBuildResult BuildFor(
-        ResourceItemViewModel root,
-        IReadOnlyCollection<ResourceItemViewModel> allResources,
+        ResourceViewModel root,
+        IReadOnlyCollection<ResourceViewModel> allResources,
         int desiredRootUnits = 1
     )
     {
@@ -147,7 +148,7 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
             if (needParentUnits <= 0)
                 continue;
 
-            var parentOutput = Math.Max(1, parent.OutputQty);
+            var parentOutput = Math.Max(1, parent.Count);
             var parentCrafts = CeilDiv(needParentUnits, parentOutput);
 
             foreach (var input in parent.Inputs)
@@ -158,7 +159,7 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
                 if (!reachable.Contains(childId))
                     continue;
 
-                var q = Math.Max(1, input.Qty);
+                var q = Math.Max(1, input.Count);
                 needUnits[childId] += parentCrafts * q;
             }
         }
@@ -173,7 +174,7 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
             if (needParentUnits <= 0)
                 continue;
 
-            var parentOutput = Math.Max(1, parent.OutputQty);
+            var parentOutput = Math.Max(1, parent.Count);
             var parentCrafts = CeilDiv(needParentUnits, parentOutput);
 
             foreach (var input in parent.Inputs)
@@ -183,20 +184,20 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
                     continue;
 
                 var child = map[childId];
-                var q = Math.Max(1, input.Qty);
+                var q = Math.Max(1, input.Count);
 
                 var edgeNeed = parentCrafts * q;
 
-                var childOut = Math.Max(1, child.OutputQty);
+                var childOut = Math.Max(1, child.Count);
                 var craftsForEdge = CeilDiv(edgeNeed, childOut);
-                var edgeTime = craftsForEdge * Math.Max(0, child.CraftTimeSec);
+                var edgeTime = craftsForEdge * Math.Max(0, child.Seconds);
 
                 edges.Add(new ResourceGraphEdge
                 {
                     FromId = childId,
                     ToId = parentId,
-                    NeedQty = edgeNeed,
-                    TimeSec = edgeTime
+                    NeedCount = edgeNeed,
+                    TimeSeconds = edgeTime
                 });
             }
         }
@@ -226,17 +227,17 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
             .Select(g =>
             {
                 var child = map[g.Key];
-                var totalNeed = g.Sum(x => x.NeedQty);
+                var totalNeed = g.Sum(x => x.NeedCount);
 
-                var childOut = Math.Max(1, child.OutputQty);
+                var childOut = Math.Max(1, child.Count);
                 var crafts = CeilDiv(totalNeed, childOut);
-                var totalTime = crafts * Math.Max(0, child.CraftTimeSec);
+                var totalTime = crafts * Math.Max(0, child.Seconds);
 
                 return new ResourceGraphOutLabel
                 {
                     FromId = g.Key,
-                    NeedQty = totalNeed,
-                    TimeSec = totalTime
+                    NeedCount = totalNeed,
+                    TimeSeconds = totalTime
                 };
             })
             .ToList();
@@ -270,7 +271,7 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
 
     private static GraphCycleInfo? DetectCycle(
         Guid rootId,
-        Dictionary<Guid, ResourceItemViewModel> map,
+        Dictionary<Guid, ResourceViewModel> map,
         HashSet<Guid> reachable
     )
     {
@@ -323,7 +324,7 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
 
     private static List<Guid> TopoOrder(
         Guid rootId,
-        Dictionary<Guid, ResourceItemViewModel> map,
+        Dictionary<Guid, ResourceViewModel> map,
         HashSet<Guid> reachable
     )
     {
@@ -357,7 +358,7 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
         HashSet<Guid> reachable,
         List<ResourceGraphEdge> edges,
         Dictionary<Guid, int> level,
-        Dictionary<Guid, ResourceItemViewModel> map
+        Dictionary<Guid, ResourceViewModel> map
     )
     {
         var parentsOf = reachable.ToDictionary(id => id, _ => new List<Guid>());
@@ -524,7 +525,7 @@ public sealed class ResourceGraphBuilder : IResourceGraphBuilder
     private static void RelaxLevelsToReduceLongSharedEdges(
         HashSet<Guid> reachable,
         List<ResourceGraphEdge> edges,
-        Dictionary<Guid, ResourceItemViewModel> map,
+        Dictionary<Guid, ResourceViewModel> map,
         Dictionary<Guid, int> level
     )
     {

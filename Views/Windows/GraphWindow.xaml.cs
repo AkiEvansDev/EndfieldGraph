@@ -1,4 +1,5 @@
-﻿using Wpf.Ui.Appearance;
+﻿using EndfieldGraph.Models;
+using Wpf.Ui.Appearance;
 
 namespace EndfieldGraph.Views.Windows;
 
@@ -10,7 +11,7 @@ public partial class GraphWindow
         ApplicationThemeManager.Apply(this);
     }
 
-    public void SetLayout(EndfieldGraph.Views.Controls.ResourceGraphLayout layout)
+    public void SetLayout(ResourceGraphLayout layout)
     {
         GraphView.Layout = layout;
         GraphView.FitToContent();

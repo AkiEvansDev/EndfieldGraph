@@ -1,9 +1,9 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using Wpf.Ui.Abstractions.Controls;
 
-namespace EndfieldGraph.ViewModels;
+namespace EndfieldGraph.ViewModels.Common;
 
-public abstract class ViewModel : ObservableObject, INavigationAware
+public abstract class BaseViewModel : ObservableObject, INavigationAware
 {
     public virtual Task OnNavigatedToAsync()
     {

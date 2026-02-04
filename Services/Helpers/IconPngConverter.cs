@@ -1,7 +1,7 @@
 ﻿using System.IO;
 using System.Windows.Media.Imaging;
 
-namespace EndfieldGraph.Services;
+namespace EndfieldGraph.Services.Helpers;
 
 public static class IconPngConverter
 {

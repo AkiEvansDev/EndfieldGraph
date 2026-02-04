@@ -1,18 +1,18 @@
-﻿namespace EndfieldGraph.Services;
+﻿namespace EndfieldGraph.Models;
 
-public sealed record BuildGoalSpec(Guid ResourceId, double QtyPerMin);
+public sealed record BuildGoalSpec(Guid Id, double CountPerMin);
 
 public sealed record BuildLeafNeed(
     Guid Id,
     string Name,
-    byte[] IconPngBytes,
+    byte[] Icon,
     double NeedPerMin
 );
 
 public sealed record BuildCalcRow(
     Guid Id,
     string Name,
-    byte[] IconPngBytes,
+    byte[] Icon,
     bool IsGoal,
     bool IsLeaf,
 
@@ -23,8 +23,8 @@ public sealed record BuildCalcRow(
     double CraftsPerMin,
     int Machines,
 
-    int OutputQty,
-    int CraftTimeSec
+    int Count,
+    int Seconds
 );
 
 public sealed class BuildCalcResult

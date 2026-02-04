@@ -1,4 +1,6 @@
-﻿using System.Windows;
+﻿using EndfieldGraph.ViewModels;
+using EndfieldGraph.ViewModels.Build;
+using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Wpf.Ui.Abstractions.Controls;
@@ -6,11 +8,11 @@ using Wpf.Ui.Controls;
 
 namespace EndfieldGraph.Views.Pages;
 
-public partial class BuildsPage : INavigableView<ViewModels.BuildsViewModel>
+public partial class BuildsPage : INavigableView<BuildsViewModel>
 {
-    public ViewModels.BuildsViewModel ViewModel { get; }
+    public BuildsViewModel ViewModel { get; }
 
-    public BuildsPage(ViewModels.BuildsViewModel viewModel)
+    public BuildsPage(BuildsViewModel viewModel)
     {
         ViewModel = viewModel;
         DataContext = this;
@@ -59,7 +61,7 @@ public partial class BuildsPage : INavigableView<ViewModels.BuildsViewModel>
     private void OnTabRenameBoxLostFocus(object sender, RoutedEventArgs e)
     {
         if (sender is not TextBox tb) return;
-        if (tb.DataContext is not ViewModels.BuildTabViewModel tab) return;
+        if (tb.DataContext is not BuildViewModel tab) return;
 
         tab.CommitRename();
     }
@@ -67,7 +69,7 @@ public partial class BuildsPage : INavigableView<ViewModels.BuildsViewModel>
     private void OnTabRenameBoxKeyDown(object sender, KeyEventArgs e)
     {
         if (sender is not TextBox tb) return;
-        if (tb.DataContext is not ViewModels.BuildTabViewModel tab) return;
+        if (tb.DataContext is not BuildViewModel tab) return;
 
         if (e.Key == Key.Enter)
         {

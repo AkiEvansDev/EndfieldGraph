@@ -1,11 +1,12 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using EndfieldGraph.Services;
+using EndfieldGraph.ViewModels.Common;
 using System.Collections.ObjectModel;
 using Wpf.Ui.Controls;
 
 namespace EndfieldGraph.ViewModels;
 
-public partial class MainWindowViewModel : ViewModel
+public partial class MainWindowViewModel : BaseViewModel
 {
     private bool isInitialized = false;
 

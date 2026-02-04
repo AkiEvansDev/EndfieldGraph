@@ -1,4 +1,5 @@
-﻿using EndfieldGraph.ViewModels.Resource;
+﻿using EndfieldGraph.ViewModels.Common;
+using EndfieldGraph.ViewModels.Resource;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -16,26 +17,26 @@ public partial class ResourcePicker : UserControl
     public static readonly DependencyProperty ItemsSourceProperty =
         DependencyProperty.Register(
             nameof(ItemsSource),
-            typeof(IEnumerable<ResourceItemViewModel>),
+            typeof(IEnumerable<ResourceViewModel>),
             typeof(ResourcePicker),
             new PropertyMetadata(null, OnInputsChanged));
 
-    public IEnumerable<ResourceItemViewModel>? ItemsSource
+    public IEnumerable<ResourceViewModel>? ItemsSource
     {
-        get => (IEnumerable<ResourceItemViewModel>?)GetValue(ItemsSourceProperty);
+        get => (IEnumerable<ResourceViewModel>?)GetValue(ItemsSourceProperty);
         set => SetValue(ItemsSourceProperty, value);
     }
 
     public static readonly DependencyProperty TakenItemsProperty =
         DependencyProperty.Register(
             nameof(TakenItems),
-            typeof(IEnumerable<ResourceInputViewModel>),
+            typeof(IEnumerable<InputViewModel>),
             typeof(ResourcePicker),
             new PropertyMetadata(null, OnInputsChanged));
 
-    public IEnumerable<ResourceInputViewModel>? TakenItems
+    public IEnumerable<InputViewModel>? TakenItems
     {
-        get => (IEnumerable<ResourceInputViewModel>?)GetValue(TakenItemsProperty);
+        get => (IEnumerable<InputViewModel>?)GetValue(TakenItemsProperty);
         set => SetValue(TakenItemsProperty, value);
     }
 
@@ -75,12 +76,12 @@ public partial class ResourcePicker : UserControl
     }
 
     public static readonly DependencyProperty ViewItemsProperty =
-        DependencyProperty.Register(nameof(ViewItems), typeof(ObservableCollection<ResourceItemViewModel>), typeof(ResourcePicker),
+        DependencyProperty.Register(nameof(ViewItems), typeof(ObservableCollection<ResourceViewModel>), typeof(ResourcePicker),
             new PropertyMetadata(null));
 
-    public ObservableCollection<ResourceItemViewModel> ViewItems
+    public ObservableCollection<ResourceViewModel> ViewItems
     {
-        get => (ObservableCollection<ResourceItemViewModel>)GetValue(ViewItemsProperty);
+        get => (ObservableCollection<ResourceViewModel>)GetValue(ViewItemsProperty);
         private set => SetValue(ViewItemsProperty, value);
     }
 
@@ -95,12 +96,12 @@ public partial class ResourcePicker : UserControl
     }
 
     public static readonly DependencyProperty SelectedIconProperty =
-        DependencyProperty.Register(nameof(SelectedIcon), typeof(BitmapImage), typeof(ResourcePicker),
+        DependencyProperty.Register(nameof(SelectedIcon), typeof(byte[]), typeof(ResourcePicker),
             new PropertyMetadata(null));
 
-    public BitmapImage? SelectedIcon
+    public byte[]? SelectedIcon
     {
-        get => (BitmapImage?)GetValue(SelectedIconProperty);
+        get => (byte[]?)GetValue(SelectedIconProperty);
         private set => SetValue(SelectedIconProperty, value);
     }
 
@@ -208,7 +209,7 @@ public partial class ResourcePicker : UserControl
 
     private void CommitFromList()
     {
-        if (List.SelectedItem is not ResourceItemViewModel r) return;
+        if (List.SelectedItem is not ResourceViewModel r) return;
         if (r.Id == Guid.Empty) return;
 
         SelectedId = r.Id;
@@ -296,7 +297,7 @@ public partial class ResourcePicker : UserControl
 
     private bool Filter(object obj)
     {
-        if (obj is not ResourceItemViewModel r)
+        if (obj is not ResourceViewModel r)
             return false;
 
         if (SelectedId != Guid.Empty && r.Id == SelectedId)

@@ -255,12 +255,12 @@
                     IsEnabled="{Binding ElementName=ChangeIcon, Path=IsEnabled}"
                     KeyDown="OnTextBoxKeyDown"/>
 
-                <ui:TextBlock Grid.Row="6" Text="Output Qty:"/>
+                <ui:TextBlock Grid.Row="6" Text="Output Count:"/>
                 <ui:NumberBox 
                     Grid.Row="8"
                     PlaceholderText="Craft count"
                     Minimum="1"
-                    Value="{Binding ViewModel.Selected.OutputQty, UpdateSourceTrigger=PropertyChanged}"
+                    Value="{Binding ViewModel.Selected.Count, UpdateSourceTrigger=PropertyChanged}"
                     IsEnabled="{Binding ElementName=ChangeIcon, Path=IsEnabled}"
                     KeyDown="OnTextBoxKeyDown">
                     <ui:NumberBox.Icon>
@@ -275,7 +275,7 @@
                     PlaceholderText="Craft time"
                     Minimum="1"
                     Maximum="99"
-                    Value="{Binding ViewModel.Selected.CraftTimeSec, UpdateSourceTrigger=PropertyChanged}"
+                    Value="{Binding ViewModel.Selected.Seconds, UpdateSourceTrigger=PropertyChanged}"
                     IsEnabled="{Binding ElementName=ChangeIcon, Path=IsEnabled}"
                     KeyDown="OnTextBoxKeyDown">
                     <ui:NumberBox.Icon>
@@ -348,7 +348,7 @@
                                         Minimum="1"
                                         Maximum="99"
                                         Height="35"
-                                        Value="{Binding Qty, UpdateSourceTrigger=PropertyChanged}"
+                                        Value="{Binding Count, UpdateSourceTrigger=PropertyChanged}"
                                         KeyDown="OnTextBoxKeyDown">
                                         <ui:NumberBox.Icon>
                                             <ui:SymbolIcon Symbol="NumberSymbolSquare24"/>

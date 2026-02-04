@@ -1,6 +1,12 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using EndfieldGraph.Models;
 using EndfieldGraph.Services;
+using EndfieldGraph.Services.Data;
+using EndfieldGraph.Services.Data.Resources;
+using EndfieldGraph.Services.Helpers;
+using EndfieldGraph.ViewModels.Build;
+using EndfieldGraph.ViewModels.Common;
 using EndfieldGraph.ViewModels.Resource;
 using EndfieldGraph.Views.Windows;
 using Microsoft.Win32;
@@ -13,7 +19,7 @@ using Wpf.Ui.Controls;
 
 namespace EndfieldGraph.ViewModels;
 
-public partial class ResourcesViewModel : ViewModel
+public partial class ResourcesViewModel : BaseViewModel
 {
     private readonly IResourcesStore store;
     private readonly IContentDialogService dialog;
@@ -24,13 +30,13 @@ public partial class ResourcesViewModel : ViewModel
     private bool loadedOnce = false;
     private int suppressSaveDepth = 0;
 
-    public ObservableCollection<ResourceItemViewModel> Resources { get; } = [];
-    public IEnumerable<ResourceItemViewModel> InputResources => Resources
+    public ObservableCollection<ResourceViewModel> Resources { get; } = [];
+    public IEnumerable<ResourceViewModel> InputResources => Resources
         .Where(r => r.Id != Selected?.Id);
 
     public ICollectionView ResourcesView { get; }
 
-    [ObservableProperty] private ResourceItemViewModel? selected;
+    [ObservableProperty] private ResourceViewModel? selected;
     [ObservableProperty] private string searchText = "";
     [ObservableProperty] private bool sortAscending = true;
     [ObservableProperty] private string graphWarning = "";
@@ -76,8 +82,11 @@ public partial class ResourcesViewModel : ViewModel
 
     private bool FilterResource(object obj)
     {
-        if (obj is not ResourceItemViewModel r)
+        if (obj is not ResourceViewModel r)
             return false;
+
+        if (r.Id == Selected?.Id)
+            return true;
 
         var q = SearchText?.Trim();
         if (string.IsNullOrWhiteSpace(q))
@@ -85,6 +94,8 @@ public partial class ResourcesViewModel : ViewModel
 
         return r.Name.Contains(q, StringComparison.OrdinalIgnoreCase);
     }
+
+    #region OnChanged
 
     partial void OnSearchTextChanged(string value)
     {
@@ -96,8 +107,11 @@ public partial class ResourcesViewModel : ViewModel
         ApplySorting();
     }
 
-    partial void OnSelectedChanged(ResourceItemViewModel? value)
+    partial void OnSelectedChanged(ResourceViewModel? value)
     {
+        if (!string.IsNullOrWhiteSpace(SearchText))
+            ResourcesView.Refresh();
+
         DeleteSelectedCommand.NotifyCanExecuteChanged();
         PickIconCommand.NotifyCanExecuteChanged();
         AddInputCommand.NotifyCanExecuteChanged();
@@ -111,6 +125,31 @@ public partial class ResourcesViewModel : ViewModel
         ViewGraphCommand.NotifyCanExecuteChanged();
     }
 
+    private void OnResourcesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems is not null)
+            foreach (var r in e.NewItems.OfType<ResourceViewModel>())
+            {
+                r.PropertyChanged += OnResourcePropertyChanged;
+                r.InputsChanged += RequestSave;
+            }
+
+        if (e.OldItems is not null)
+            foreach (var r in e.OldItems.OfType<ResourceViewModel>())
+            {
+                r.PropertyChanged -= OnResourcePropertyChanged;
+                r.InputsChanged -= RequestSave;
+            }
+
+        RequestSave();
+    }
+
+    private void OnResourcePropertyChanged(object? sender, PropertyChangedEventArgs e)
+        => RequestSave();
+
+    #endregion
+    #region Commands
+
     [RelayCommand]
     private void ToggleSort()
     {
@@ -120,15 +159,19 @@ public partial class ResourcesViewModel : ViewModel
     [RelayCommand]
     private void AddResource()
     {
-        var vm = new ResourceItemViewModel(
+        var search = SearchText;
+        SearchText = "";
+
+        var vm = new ResourceViewModel(
             Guid.NewGuid(),
-            string.IsNullOrWhiteSpace(SearchText) ? "_ New Resource" : SearchText,
+            string.IsNullOrWhiteSpace(search) ? "_ New Resource" : search,
             DefaultIcons.ResourcePlaceholderPng
         );
 
         Resources.Add(vm);
-        SearchText = "";
         Selected = vm;
+
+        SearchText = search;
 
         ApplySorting();
         RequestSave();
@@ -143,23 +186,25 @@ public partial class ResourcesViewModel : ViewModel
         if (first is null)
             return;
 
-        Selected.Inputs.Add(new ResourceInputViewModel(first.Id, 1));
+        Selected.Inputs.Add(new InputViewModel(first.Id, 1));
+
         RecalcGraphWarning();
         RequestSave();
     }
 
     [RelayCommand(CanExecute = nameof(IsSelected))]
-    private void RemoveInput(ResourceInputViewModel? input)
+    private void RemoveInput(InputViewModel? input)
     {
         if (Selected is null || input is null) return;
 
         Selected.Inputs.Remove(input);
+
         RecalcGraphWarning();
         RequestSave();
     }
 
     [RelayCommand(CanExecute = nameof(IsSelected))]
-    private void ShowInput(ResourceInputViewModel? input)
+    private void ShowInput(InputViewModel? input)
     {
         if (input is null) return;
 
@@ -211,7 +256,7 @@ public partial class ResourcesViewModel : ViewModel
         }
 
         Resources.Remove(removed);
-        Selected = Resources.FirstOrDefault();
+        Selected = ResourcesView.Cast<ResourceViewModel>().FirstOrDefault();
 
         RequestSave();
     }
@@ -231,8 +276,7 @@ public partial class ResourcesViewModel : ViewModel
         if (ofd.ShowDialog() != true)
             return;
 
-        var png = IconPngConverter.LoadAnyImageAsPngBytes(ofd.FileName);
-        Selected.SetIcon(png);
+        Selected.Icon = IconPngConverter.LoadAnyImageAsPngBytes(ofd.FileName);
 
         RequestSave();
     }
@@ -258,6 +302,12 @@ public partial class ResourcesViewModel : ViewModel
         w.Show();
     }
 
+    private bool IsGraph() => Selected is not null && string.IsNullOrWhiteSpace(GraphWarning);
+    private bool IsInput() => Selected is not null && Resources?.Where(r => r.Id != Selected.Id && !Selected.Inputs.Any(i => i.Id == r.Id)).Count() > 0;
+    private bool IsSelected() => Selected is not null;
+
+    #endregion
+
     private void RecalcGraphWarning()
     {
         GraphWarning = "";
@@ -274,84 +324,16 @@ public partial class ResourcesViewModel : ViewModel
         }
     }
 
-    private bool IsGraph() => Selected is not null && string.IsNullOrWhiteSpace(GraphWarning);
-    private bool IsInput() => Selected is not null && Resources?.Where(r => r.Id != Selected.Id && !Selected.Inputs.Any(i => i.Id == r.Id)).Count() > 0;
-    private bool IsSelected() => Selected is not null;
-
     private void ApplySorting()
     {
         ResourcesView.SortDescriptions.Clear();
         ResourcesView.SortDescriptions.Add(
             new SortDescription(
-                nameof(ResourceItemViewModel.Name),
+                nameof(ResourceViewModel.Name),
                 SortAscending ? ListSortDirection.Ascending : ListSortDirection.Descending
             )
         );
         ResourcesView.Refresh();
-    }
-
-    private void OnResourcesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        if (e.OldItems is not null)
-            foreach (var it in e.OldItems.OfType<ResourceItemViewModel>())
-            {
-                it.PropertyChanged -= OnResourcePropertyChanged;
-                it.Inputs.CollectionChanged -= OnInputsCollectionChanged;
-
-                foreach (var input in it.Inputs)
-                    input.PropertyChanged -= OnResourcePropertyChanged;
-            }
-
-        if (e.NewItems is not null)
-            foreach (var it in e.NewItems.OfType<ResourceItemViewModel>())
-            {
-                it.PropertyChanged += OnResourcePropertyChanged;
-                it.Inputs.CollectionChanged += OnInputsCollectionChanged;
-
-                foreach (var input in it.Inputs)
-                    input.PropertyChanged += OnResourcePropertyChanged;
-            }
-
-        RequestSave();
-    }
-
-    private void OnInputsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        if (e.OldItems is not null)
-        {
-            foreach (var i in e.OldItems.OfType<ResourceInputViewModel>())
-                i.PropertyChanged -= OnResourcePropertyChanged;
-        }
-
-        if (e.NewItems is not null)
-        {
-            foreach (var i in e.NewItems.OfType<ResourceInputViewModel>())
-                i.PropertyChanged += OnResourcePropertyChanged;
-        }
-
-        RequestSave();
-    }
-
-    private readonly string[] watched =
-    [
-        nameof(ResourceItemViewModel.Name),
-        nameof(ResourceItemViewModel.Icon),
-        nameof(ResourceItemViewModel.OutputQty),
-        nameof(ResourceItemViewModel.CraftTimeSec),
-        nameof(ResourceInputViewModel.Id),
-        nameof(ResourceInputViewModel.Qty),
-    ];
-
-    private void OnResourcePropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName is nameof(ResourceItemViewModel.Name))
-            ApplySorting();
-
-        if (e.PropertyName is nameof(ResourceInputViewModel.Id))
-            RecalcGraphWarning();
-
-        if (watched.Contains(e.PropertyName))
-            RequestSave();
     }
 
     private void RequestSave()
@@ -427,16 +409,16 @@ public partial class ResourcesViewModel : ViewModel
         {
             Resources.Clear();
 
-            foreach (var r in store.Resources.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
+            foreach (var r in store.Items.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
             {
-                var vm = new ResourceItemViewModel(r.Id, r.Name, r.IconPngBytes)
+                var vm = new ResourceViewModel(r.Id, r.Name, r.Icon)
                 {
-                    OutputQty = r.OutputQty,
-                    CraftTimeSec = r.CraftTimeSec
+                    Count = r.Count,
+                    Seconds = r.Seconds
                 };
 
-                foreach (var (id, qty) in r.Inputs)
-                    vm.Inputs.Add(new ResourceInputViewModel(id, qty));
+                foreach (var (id, count) in r.Inputs)
+                    vm.Inputs.Add(new InputViewModel(id, count));
 
                 Resources.Add(vm);
             }
@@ -454,10 +436,10 @@ public partial class ResourcesViewModel : ViewModel
                 .Select(r => new ResourceRecord(
                     r.Id,
                     r.Name.Trim(),
-                    r.IconPngBytes,
-                    r.OutputQty <= 0 ? 1 : r.OutputQty,
-                    r.CraftTimeSec,
-                    [.. r.Inputs.Where(i => i.Id != Guid.Empty && i.Qty > 0).Select(i => (i.Id, i.Qty))]
+                    r.Icon,
+                    r.Count <= 0 ? 1 : r.Count,
+                    r.Seconds,
+                    [.. r.Inputs.Where(i => i.Id != Guid.Empty && i.Count > 0).Select(i => (i.Id, i.Count))]
                 ))
                 .ToList();
 
@@ -469,6 +451,14 @@ public partial class ResourcesViewModel : ViewModel
         }
     }
 
+    private void ShowError(string message)
+    {
+        snackbar.Show("Error", message, ControlAppearance.Danger,
+            new SymbolIcon(SymbolRegular.ErrorCircle24),
+            TimeSpan.FromSeconds(6)
+        );
+    }
+
     private Scope SuppressSaveScope()
     {
         suppressSaveDepth++;
@@ -478,13 +468,5 @@ public partial class ResourcesViewModel : ViewModel
     private sealed class Scope(Action onDispose) : IDisposable
     {
         public void Dispose() => onDispose();
-    }
-
-    private void ShowError(string message)
-    {
-        snackbar.Show("Error", message, ControlAppearance.Danger,
-            new SymbolIcon(SymbolRegular.ErrorCircle24),
-            TimeSpan.FromSeconds(6)
-        );
     }
 }
